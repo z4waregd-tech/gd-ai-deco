@@ -11,7 +11,7 @@ DATASETS_DIR = Path("datasets")
 
 DATASETS_DIR.mkdir(exist_ok=True)
 
-# Object IDs that are ALWAYS gameplay, never deco (portals, orbs, pads, speed changes)
+# Object IDs that are ALWAYS gameplay, never deco (portals, orbs, pads, speed changes, spikes, saws, main blocks)
 GAMEPLAY_IDS = {
     "12", "13", "47", "111", "660", "745", "1331", "1933",  # Game mode portals
     "99", "101",          # Size portals
@@ -22,6 +22,9 @@ GAMEPLAY_IDS = {
     "36", "84", "141", "1022", "1333", "1704", "1751",  # Orbs
     "35", "67", "140", "1332", "1594",  # Pads
     "747", "749",         # Teleport portals
+    "1", "2", "3", "4", "8", "9", "39", "40", # Standard solid blocks & spikes
+    "152", "153", "1708", "1709", # Standard saws
+    "61", "142", "143", "551" # Slopes
 }
 
 

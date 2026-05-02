@@ -84,8 +84,22 @@ def generate_deco(theme="Hellish, Red, Demon, 2.1.", max_tokens=1024):
             logits = model(context)
             next_token_logits = logits[0, -1, :]
             
-            temperature = 0.8
-            probs = F.softmax(next_token_logits / temperature, dim=-1)
+            temperature = 0.5
+            scaled_logits = next_token_logits / temperature
+            
+            # Top-P (Nucleus) Sampling to prevent repeating loops
+            top_p = 0.9
+            sorted_logits, sorted_indices = torch.sort(scaled_logits, descending=True)
+            cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
+            
+            sorted_indices_to_remove = cumulative_probs > top_p
+            sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+            sorted_indices_to_remove[..., 0] = 0
+            
+            indices_to_remove = sorted_indices_to_remove.scatter(dim=-1, index=sorted_indices, src=sorted_indices_to_remove)
+            scaled_logits[indices_to_remove] = -float('Inf')
+            
+            probs = F.softmax(scaled_logits, dim=-1)
             next_token_id = torch.multinomial(probs, num_samples=1).item()
             
             if next_token_id == tokenizer.vocab.get("[DECO_END]", -1):

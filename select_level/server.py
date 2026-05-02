@@ -15,6 +15,17 @@ class GDLevelManagerHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(Path(__file__).parent), **kwargs)
         
+    def do_GET(self):
+        if self.path == '/api/downloaded':
+            LEVELS_DIR.mkdir(exist_ok=True)
+            downloaded = [d.name for d in LEVELS_DIR.iterdir() if d.is_dir()]
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(downloaded).encode())
+        else:
+            super().do_GET()
+
     def do_POST(self):
         if self.path == '/api/save':
             content_length = int(self.headers['Content-Length'])
@@ -29,9 +40,9 @@ class GDLevelManagerHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 folder_name = self.save_level(level_name, full_id, layout_id, theme)
                 
-                # trigger build datasets optionally
+                # trigger build datasets asynchronously so it doesn't block batches!
                 import subprocess
-                subprocess.run(["python", str(PROJECT_ROOT / "build_datasets.py"), folder_name], cwd=str(PROJECT_ROOT))
+                subprocess.Popen(["python", str(PROJECT_ROOT / "build_datasets.py"), folder_name], cwd=str(PROJECT_ROOT))
                 
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')

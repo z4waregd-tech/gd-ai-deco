@@ -4,575 +4,621 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GD AI Dataset Builder</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #0b0b0b;
-            --surface-color: #161616;
-            --border-color: #2b2b2b;
-            --text-main: #ededed;
-            --text-muted: #a1a1aa;
-            --btn-bg: #2b2b2b;
-            --btn-hover: #3f3f3f;
-            --primary: #ededed;
-            --primary-bg: #161616;
-            --radius-md: 8px;
-            --radius-lg: 12px;
+            --bg: #0d0d0f;
+            --surface: #111113;
+            --surface2: #18181b;
+            --border: #27272a;
+            --text: #fafafa;
+            --muted: #71717a;
+            --accent: #6366f1;
+            --accent-dim: rgba(99,102,241,0.15);
+            --green: #22c55e;
+            --red: #ef4444;
+            --r: 8px;
         }
+
+        * { box-sizing: border-box; }
 
         body {
-            font-family: 'Inter', -apple-system, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
             margin: 0;
-            padding: 0;
+            min-height: 100vh;
             display: flex;
             justify-content: center;
-            min-height: 100vh;
         }
 
-        .layout {
+        .root {
             width: 100%;
-            max-width: 900px;
-            padding: 40px 24px;
+            max-width: 960px;
+            padding: 48px 24px;
         }
 
-        header {
-            margin-bottom: 40px;
-            border-bottom: 1px solid var(--border-color);
+        /* ── Header ── */
+        .site-header {
+            margin-bottom: 36px;
             padding-bottom: 24px;
+            border-bottom: 1px solid var(--border);
         }
 
-        h1 {
-            font-size: 24px;
+        .site-header h1 {
+            font-size: 20px;
             font-weight: 600;
-            margin: 0 0 8px 0;
-            letter-spacing: -0.5px;
-        }
-
-        p.desc {
-            color: var(--text-muted);
-            font-size: 14px;
-            margin: 0;
-            line-height: 1.5;
-        }
-
-        .panels {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 24px;
-            margin-bottom: 32px;
-        }
-
-        @media (max-width: 768px) {
-            .panels {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .panel {
-            background-color: var(--surface-color);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-lg);
-            padding: 24px;
+            margin: 0 0 4px;
+            letter-spacing: -0.4px;
             display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .panel-header {
-            font-size: 14px;
-            font-weight: 500;
-            color: var(--text-main);
-        }
-
-        .search-controls {
-            display: flex;
-            flex-direction: column;
+            align-items: center;
             gap: 10px;
         }
 
-        .input-group {
-            display: flex;
-            gap: 8px;
+        .site-header h1 span.tag {
+            font-size: 11px;
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--accent-dim);
+            color: var(--accent);
+            padding: 3px 8px;
+            border-radius: 4px;
+            letter-spacing: 0.5px;
+            font-weight: 500;
         }
 
-        input[type="text"], select {
-            background-color: transparent;
-            border: 1px solid var(--border-color);
-            color: var(--text-main);
-            border-radius: var(--radius-md);
-            padding: 10px 12px;
-            font-family: inherit;
+        .site-header p {
+            color: var(--muted);
+            font-size: 13px;
+            margin: 0;
+        }
+
+        /* ── Batch Block ── */
+        .batch-block {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--r);
+            padding: 20px;
+            margin-bottom: 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .batch-block-title {
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .batch-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        #batchStatus {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: var(--green);
+            background: rgba(34, 197, 94, 0.07);
+            border: 1px solid rgba(34, 197, 94, 0.15);
+            padding: 8px 12px;
+            border-radius: 6px;
+            display: none;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* ── Panels ── */
+        .panels {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 700px) {
+            .panels { grid-template-columns: 1fr; }
+        }
+
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--r);
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .panel-title {
+            font-size: 11px;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* ── Inputs ── */
+        input[type="text"], input[type="number"], select, textarea {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: var(--r);
+            padding: 9px 12px;
+            font-family: 'Inter', sans-serif;
             font-size: 13px;
             outline: none;
             transition: border-color 0.15s;
         }
 
-        input[type="text"] {
-            flex: 1;
+        input[type="text"]:focus, input[type="number"]:focus, select:focus {
+            border-color: var(--accent);
         }
+
+        input[type="text"] { flex: 1; }
 
         select {
             cursor: pointer;
-            width: 140px;
         }
-        
+
         select option, optgroup {
-            background-color: var(--surface-color);
-            color: var(--text-main);
+            background: #111113;
+            color: var(--text);
         }
 
-        input:focus, select:focus {
-            border-color: #555;
+        .input-row {
+            display: flex;
+            gap: 8px;
         }
 
+        /* ── Buttons ── */
         button {
-            background-color: var(--btn-bg);
-            border: 1px solid var(--border-color);
-            color: var(--text-main);
-            border-radius: var(--radius-md);
-            padding: 10px 16px;
-            font-family: inherit;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: var(--r);
+            padding: 9px 14px;
+            font-family: 'Inter', sans-serif;
             font-size: 13px;
             font-weight: 500;
             cursor: pointer;
-            transition: all 0.15s;
+            transition: all 0.12s;
+            white-space: nowrap;
         }
 
-        button:hover {
-            background-color: var(--btn-hover);
-        }
+        button:hover { background: #27272a; }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
 
-        button.primary {
-            background-color: var(--primary);
-            color: #000;
-            border: none;
+        button.accent {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+        button.accent:hover { background: #4f52d9; }
+
+        button.sync {
             width: 100%;
-            padding: 12px;
-            font-size: 15px;
-            margin-top: 16px;
+            padding: 13px;
+            font-size: 14px;
+            font-weight: 600;
+            background: var(--text);
+            color: var(--bg);
+            border: none;
+            border-radius: var(--r);
+            margin-top: 4px;
+            letter-spacing: -0.2px;
         }
+        button.sync:hover { background: #fff; }
 
-        button.primary:hover {
-            background-color: #fff;
-        }
-
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
+        /* ── Results ── */
         .results {
-            max-height: 250px;
+            max-height: 240px;
             overflow-y: auto;
             border: 1px solid transparent;
-            border-radius: var(--radius-md);
+            border-radius: var(--r);
             scrollbar-width: thin;
-        }
-
-        .results::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .results::-webkit-scrollbar-thumb {
-            background-color: #444;
-            border-radius: 4px;
+            scrollbar-color: #333 transparent;
         }
 
         .result-item {
-            padding: 10px 12px;
-            border-bottom: 1px solid var(--border-color);
+            padding: 9px 12px;
+            border-bottom: 1px solid var(--border);
             cursor: pointer;
             display: flex;
             justify-content: space-between;
             align-items: center;
             font-size: 13px;
+            transition: background 0.1s;
         }
 
-        .result-item:last-child {
-            border-bottom: none;
-        }
-
-        .result-item:hover {
-            background-color: rgba(255, 255, 255, 0.05);
-        }
-
+        .result-item:last-child { border-bottom: none; }
+        .result-item:hover { background: rgba(255,255,255,0.04); }
         .result-item.selected {
-            background-color: rgba(255, 255, 255, 0.1);
-            border-left: 3px solid var(--text-main);
-            padding-left: 9px;
-        }
-
-        .level-info {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
+            background: var(--accent-dim);
+            border-left: 2px solid var(--accent);
+            padding-left: 10px;
         }
 
         .level-name {
             font-weight: 500;
-            color: var(--text-main);
             display: flex;
             align-items: center;
             gap: 6px;
         }
 
         .level-author {
-            color: var(--text-muted);
-            font-size: 12px;
+            color: var(--muted);
+            font-size: 11px;
+            margin-top: 2px;
         }
 
         .level-id {
-            color: var(--text-muted);
-            font-family: monospace;
-            background: rgba(255,255,255,0.05);
+            color: var(--muted);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            background: rgba(255,255,255,0.04);
             padding: 2px 6px;
             border-radius: 4px;
-            font-size: 12px;
         }
-        
+
         .diff-badge {
-            font-size: 10px;
+            font-size: 9px;
             padding: 2px 5px;
-            border-radius: 4px;
-            background: #2b2b2b;
-            color: #ccc;
+            border-radius: 3px;
+            background: #27272a;
+            color: #a1a1aa;
             text-transform: uppercase;
             font-weight: 600;
             letter-spacing: 0.5px;
         }
 
-        .settings-panel {
-            background-color: var(--surface-color);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-lg);
-            padding: 24px;
+        /* ── Config Row ── */
+        .config-row {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--r);
+            padding: 18px;
         }
 
-        .settings-grid {
+        .config-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 16px;
+            gap: 12px;
+            margin-bottom: 14px;
         }
 
-        .label {
+        label {
             display: block;
-            font-size: 13px;
-            color: var(--text-muted);
-            margin-bottom: 8px;
+            font-size: 11px;
+            color: var(--muted);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-family: 'JetBrains Mono', monospace;
         }
 
+        /* ── Toasts ── */
         .toast-container {
             position: fixed;
-            bottom: 24px;
-            right: 24px;
+            bottom: 20px;
+            right: 20px;
             display: flex;
             flex-direction: column;
-            gap: 8px;
-            z-index: 50;
+            gap: 6px;
+            z-index: 99;
         }
 
         .toast {
-            background-color: var(--surface-color);
-            border: 1px solid var(--border-color);
-            color: var(--text-main);
-            padding: 12px 16px;
-            border-radius: var(--radius-md);
-            font-size: 14px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-            animation: slide-up 0.2s ease-out forwards;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px 14px;
+            border-radius: var(--r);
+            font-size: 13px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            animation: up 0.15s ease-out;
+            transition: opacity 0.2s;
         }
 
-        .toast.success { border-left: 3px solid #10b981; }
-        .toast.error { border-left: 3px solid #ef4444; }
+        .toast.success { border-left: 3px solid var(--green); }
+        .toast.error { border-left: 3px solid var(--red); }
 
-        @keyframes slide-up {
-            from { transform: translateY(10px); opacity: 0; }
+        @keyframes up {
+            from { transform: translateY(8px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
         }
-
-        .loader {
-            display: inline-block;
-            width: 14px;
-            height: 14px;
-            border: 2px solid rgba(0,0,0,0.2);
-            border-top: 2px solid #000;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin-right: 8px;
-            vertical-align: middle;
-        }
-        
-        .loader.hidden { display: none; }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
+<div class="root">
 
-    <div class="layout">
-        <header>
-            <h1>Dataset Builder</h1>
-            <p class="desc">Search and sync levels directly from Geometry Dash. Supports exact names and difficulties.</p>
-        </header>
+    <!-- Header -->
+    <header class="site-header">
+        <h1>Dataset Builder <span class="tag">GD-AI-DECO</span></h1>
+        <p>Search, pair, and sync decorated extreme demons with their base layouts for training.</p>
+    </header>
 
-        <div class="panels">
-            <!-- Full Level Side -->
-            <div class="panel">
-                <div class="panel-header">Target Level (Decorated)</div>
-                <div class="search-controls">
-                    <div class="input-group">
-                        <input type="text" id="fullSearch" placeholder="Name or leave empty" onkeydown="if(event.key === 'Enter') handleSearch('full')">
-                        <select id="fullDiff">
-                            <option value="">Any Difficulty</option>
-                            <option value="-3">Auto</option>
-                            <option value="-1">N/A</option>
-                            <option value="1">Easy</option>
-                            <option value="2">Normal</option>
-                            <option value="3">Hard</option>
-                            <option value="4">Harder</option>
-                            <option value="5">Insane</option>
-                            <optgroup label="Demons">
-                                <option value="-2_1">Easy Demon</option>
-                                <option value="-2_2">Medium Demon</option>
-                                <option value="-2_3">Hard Demon</option>
-                                <option value="-2_4">Insane Demon</option>
-                                <option value="-2_5">Extreme Demon</option>
-                            </optgroup>
-                        </select>
-                    </div>
-                    <button onclick="handleSearch('full')" style="width: 100%;">Search Database</button>
-                </div>
-                <div class="results" id="fullResults"></div>
+    <!-- Batch Automation -->
+    <div class="batch-block">
+        <div class="batch-block-title">Batch Automation</div>
+        <div class="batch-controls">
+            <select id="autoDiff" style="width: 160px;">
+                <option value="-2_5">Extreme Demon</option>
+                <option value="-2_4">Insane Demon</option>
+                <option value="-2_3">Hard Demon</option>
+                <option value="-2_2">Medium Demon</option>
+                <option value="-2_1">Easy Demon</option>
+            </select>
+            <input type="number" id="batchCount" style="width: 72px;" value="10" min="1" max="200" placeholder="Count">
+            <button class="accent" onclick="startBatch()" id="btnBatch">Run Batch</button>
+        </div>
+        <div id="batchStatus"></div>
+    </div>
+
+    <!-- Search Panels -->
+    <div class="panels">
+        <!-- Decorated -->
+        <div class="panel">
+            <div class="panel-title">Decorated Level</div>
+            <div class="input-row">
+                <input type="text" id="fullSearch" placeholder="Level name…" onkeydown="if(event.key==='Enter') handleSearch('full')">
+                <select id="fullDiff" style="width:130px;">
+                    <option value="">Any</option>
+                    <option value="-3">Auto</option>
+                    <option value="-1">N/A</option>
+                    <option value="1">Easy</option>
+                    <option value="2">Normal</option>
+                    <option value="3">Hard</option>
+                    <option value="4">Harder</option>
+                    <option value="5">Insane</option>
+                    <optgroup label="Demons">
+                        <option value="-2_1">Easy Demon</option>
+                        <option value="-2_2">Medium Demon</option>
+                        <option value="-2_3">Hard Demon</option>
+                        <option value="-2_4">Insane Demon</option>
+                        <option value="-2_5">Extreme Demon</option>
+                    </optgroup>
+                </select>
             </div>
-
-            <!-- Layout Side -->
-            <div class="panel">
-                <div class="panel-header">Layout Source (Gameplay)</div>
-                <div class="search-controls">
-                    <div class="input-group">
-                        <input type="text" id="layoutSearch" placeholder="Name or leave empty" onkeydown="if(event.key === 'Enter') handleSearch('layout')">
-                        <select id="layoutDiff">
-                            <option value="">Any Difficulty</option>
-                            <option value="-3">Auto</option>
-                            <option value="-1">N/A</option>
-                            <option value="1">Easy</option>
-                            <option value="2">Normal</option>
-                            <option value="3">Hard</option>
-                            <option value="4">Harder</option>
-                            <option value="5">Insane</option>
-                            <optgroup label="Demons">
-                                <option value="-2_1">Easy Demon</option>
-                                <option value="-2_2">Medium Demon</option>
-                                <option value="-2_3">Hard Demon</option>
-                                <option value="-2_4">Insane Demon</option>
-                                <option value="-2_5">Extreme Demon</option>
-                            </optgroup>
-                        </select>
-                    </div>
-                    <button onclick="handleSearch('layout')" style="width: 100%;">Search Database</button>
-                </div>
-                <div class="results" id="layoutResults"></div>
-            </div>
+            <button onclick="handleSearch('full')" style="width:100%;">Search</button>
+            <div class="results" id="fullResults"></div>
         </div>
 
-        <div class="settings-panel">
-            <div class="panel-header">Dataset Configuration</div>
-            <div class="settings-grid">
-                <div>
-                    <label class="label">Level Name (Folder)</label>
-                    <input type="text" id="folderName" placeholder="Level name" style="width: 100%; box-sizing:border-box;">
-                </div>
-                <div>
-                    <label class="label">Style/Theme Tag</label>
-                    <input type="text" id="themeTag" placeholder="e.g. Hell, Nine Circles" style="width: 100%; box-sizing:border-box;">
-                </div>
+        <!-- Layout -->
+        <div class="panel">
+            <div class="panel-title">Layout Source</div>
+            <div class="input-row">
+                <input type="text" id="layoutSearch" placeholder="Layout name…" onkeydown="if(event.key==='Enter') handleSearch('layout')">
+                <select id="layoutDiff" style="width:130px;">
+                    <option value="">Any</option>
+                    <option value="-3">Auto</option>
+                    <option value="-1">N/A</option>
+                    <option value="1">Easy</option>
+                    <option value="2">Normal</option>
+                    <option value="3">Hard</option>
+                    <option value="4">Harder</option>
+                    <option value="5">Insane</option>
+                    <optgroup label="Demons">
+                        <option value="-2_1">Easy Demon</option>
+                        <option value="-2_2">Medium Demon</option>
+                        <option value="-2_3">Hard Demon</option>
+                        <option value="-2_4">Insane Demon</option>
+                        <option value="-2_5">Extreme Demon</option>
+                    </optgroup>
+                </select>
             </div>
-
-            <button class="primary" id="saveBtn" onclick="submitDataset()">
-                <span class="loader hidden" id="saveLoader"></span>
-                <span id="saveText">Sync to Local Dataset</span>
-            </button>
+            <button onclick="handleSearch('layout')" style="width:100%;">Search</button>
+            <div class="results" id="layoutResults"></div>
         </div>
     </div>
 
-    <div class="toast-container" id="toastContainer"></div>
+    <!-- Config -->
+    <div class="config-row">
+        <div class="config-grid">
+            <div>
+                <label>Folder Name</label>
+                <input type="text" id="folderName" placeholder="e.g. Bloodbath" style="width:100%;">
+            </div>
+            <div>
+                <label>Theme Tag</label>
+                <input type="text" id="themeTag" placeholder="e.g. Hell, Nine Circles" style="width:100%;">
+            </div>
+        </div>
+        <button class="sync" id="saveBtn" onclick="submitDataset()">
+            <span id="saveLoader" style="display:none;">⏳ </span>
+            <span id="saveText">Sync to Dataset</span>
+        </button>
+    </div>
 
-    <script>
-        let selection = { full: null, layout: null };
-        let currentPages = { full: 0, layout: 0 };
+</div>
 
-        function showMessage(msg, isError = false) {
-            const container = document.getElementById('toastContainer');
-            const toast = document.createElement('div');
-            toast.className = `toast ${isError ? 'error' : 'success'}`;
-            toast.innerText = msg;
-            container.appendChild(toast);
-            setTimeout(() => {
-                toast.style.opacity = '0';
-                setTimeout(() => toast.remove(), 200);
-            }, 3000);
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+    let selection = { full: null, layout: null };
+    let currentPages = { full: 0, layout: 0 };
+
+    function showMessage(msg, isError = false) {
+        const c = document.getElementById('toastContainer');
+        const t = document.createElement('div');
+        t.className = `toast ${isError ? 'error' : 'success'}`;
+        t.innerText = msg;
+        c.appendChild(t);
+        setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 200); }, 3000);
+    }
+
+    async function handleSearch(type, page = 0) {
+        let query = document.getElementById(`${type}Search`).value.trim();
+        const diffRaw = document.getElementById(`${type}Diff`).value;
+
+        if (!query && !diffRaw) { showMessage("Enter a name or pick a difficulty.", true); return; }
+        if (!query) query = "*";
+
+        currentPages[type] = page;
+        const resDiv = document.getElementById(`${type}Results`);
+
+        if (page === 0) {
+            resDiv.innerHTML = '<div style="padding:10px 12px;color:var(--muted);font-size:13px;">Searching…</div>';
+            resDiv.style.border = '1px solid var(--border)';
+        } else {
+            const btn = document.getElementById(`${type}LoadMore`);
+            if (btn) { btn.innerText = "Loading…"; btn.disabled = true; }
         }
 
-        async function handleSearch(type, page = 0) {
-            let query = document.getElementById(`${type}Search`).value.trim();
-            const diffRaw = document.getElementById(`${type}Diff`).value;
-            
-            if (!query && !diffRaw) {
-                showMessage("Enter a name or select a difficulty.", true);
+        let url = `https://gdbrowser.com/api/search/${encodeURIComponent(query)}`;
+        const p = new URLSearchParams();
+        p.append("page", page);
+        if (diffRaw) {
+            if (diffRaw.startsWith("-2_")) { p.append("diff", "-2"); p.append("demonFilter", diffRaw.split("_")[1]); }
+            else p.append("diff", diffRaw);
+        }
+        url += `?${p.toString()}`;
+
+        try {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+
+            if (page > 0) { const b = document.getElementById(`${type}LoadMore`); if(b) b.remove(); }
+            if (!data || data.length === 0 || data == "-1") {
+                if (page === 0) resDiv.innerHTML = '<div style="padding:10px 12px;color:var(--muted);font-size:13px;">No results.</div>';
                 return;
             }
 
-            if (!query) query = "*";
+            if (page === 0) resDiv.innerHTML = '';
+            data.forEach(level => {
+                const el = document.createElement('div');
+                el.className = 'result-item';
+                el.onclick = () => selectLevel(type, level.id, level.name, el);
+                let diff = level.demon ? "Demon" : level.difficulty;
+                el.innerHTML = `
+                    <div>
+                        <div class="level-name">${level.name}<span class="diff-badge">${diff}</span></div>
+                        <div class="level-author">by ${level.author}</div>
+                    </div>
+                    <span class="level-id">${level.id}</span>`;
+                resDiv.appendChild(el);
+            });
 
-            currentPages[type] = page;
-            const resDiv = document.getElementById(`${type}Results`);
-            
-            if (page === 0) {
-                resDiv.innerHTML = '<div style="padding: 10px 12px; color: #888; font-size: 13px;">Searching geometry dash servers...</div>';
-                resDiv.style.border = '1px solid var(--border-color)';
+            if (data.length === 10) {
+                const lb = document.createElement('button');
+                lb.id = `${type}LoadMore`;
+                lb.innerText = "Load More";
+                lb.style.cssText = "width:100%;margin-top:6px;padding:8px;background:var(--surface2);border:1px solid var(--border);";
+                lb.onclick = () => handleSearch(type, page + 1);
+                resDiv.appendChild(lb);
+            }
+        } catch {
+            if (page === 0) resDiv.innerHTML = '<div style="padding:10px 12px;color:var(--red);font-size:13px;">Network error or no results.</div>';
+        }
+    }
+
+    function selectLevel(type, id, name, element) {
+        Array.from(element.parentElement.children).forEach(c => c.classList.remove('selected'));
+        element.classList.add('selected');
+        selection[type] = id;
+        if (type === 'full') document.getElementById('folderName').value = name;
+    }
+
+    async function submitDataset() {
+        if (!selection.full || !selection.layout) { showMessage('Select both levels first.', true); return; }
+        const name = document.getElementById('folderName').value.trim();
+        const theme = document.getElementById('themeTag').value.trim();
+        if (!name) { showMessage('Folder Name required.', true); return; }
+
+        document.getElementById('saveLoader').style.display = 'inline';
+        document.getElementById('saveText').innerText = 'Syncing…';
+        document.getElementById('saveBtn').disabled = true;
+
+        try {
+            const r = await fetch('/api/save', {
+                method: 'POST',
+                body: JSON.stringify({ level_name: name, full_id: selection.full, layout_id: selection.layout, theme: theme || 'Unknown' })
+            });
+            const d = await r.json();
+            if (d.success) {
+                showMessage(`Synced "${name}" to dataset!`);
+                selection = { full: null, layout: null };
+                document.getElementById('folderName').value = '';
+                document.getElementById('themeTag').value = '';
             } else {
-                const existingLoadBtn = document.getElementById(`${type}LoadMore`);
-                if (existingLoadBtn) {
-                    existingLoadBtn.innerText = "Loading...";
-                    existingLoadBtn.disabled = true;
-                }
+                showMessage(`Error: ${d.error}`, true);
             }
-
-            let apiUrl = `https://gdbrowser.com/api/search/${encodeURIComponent(query)}`;
-            const params = new URLSearchParams();
-            params.append("page", page);
-
-            if (diffRaw) {
-                if (diffRaw.startsWith("-2_")) {
-                    params.append("diff", "-2");
-                    params.append("demonFilter", diffRaw.split("_")[1]);
-                } else {
-                    params.append("diff", diffRaw);
-                }
-            }
-
-            if (params.toString()) {
-                apiUrl += `?${params.toString()}`;
-            }
-
-            try {
-                const res = await fetch(apiUrl);
-                if (!res.ok) throw new Error('API Error');
-                const data = await res.json();
-                
-                if (page > 0) {
-                    const existingLoadBtn = document.getElementById(`${type}LoadMore`);
-                    if (existingLoadBtn) existingLoadBtn.remove();
-                }
-
-                if (!data || data.length === 0 || data == "-1") {
-                    if (page === 0) resDiv.innerHTML = '<div style="padding: 10px 12px; color: #888; font-size: 13px;">No levels found.</div>';
-                    return;
-                }
-
-                if (page === 0) resDiv.innerHTML = '';
-
-                data.forEach(level => {
-                    const el = document.createElement('div');
-                    el.className = 'result-item';
-                    el.onclick = () => selectLevel(type, level.id, level.name, el);
-                    
-                    let diffText = level.difficulty;
-                    if (level.demon) diffText = "Demon";
-                    
-                    el.innerHTML = `
-                        <div class="level-info">
-                            <span class="level-name">
-                                ${level.name}
-                                <span class="diff-badge">${diffText}</span>
-                            </span>
-                            <span class="level-author">by ${level.author}</span>
-                        </div>
-                        <span class="level-id">${level.id}</span>
-                    `;
-                    resDiv.appendChild(el);
-                });
-
-                if (data.length === 10) {
-                    const loadBtn = document.createElement('button');
-                    loadBtn.id = `${type}LoadMore`;
-                    loadBtn.innerText = "Load More Levels";
-                    loadBtn.style.width = "100%";
-                    loadBtn.style.marginTop = "8px";
-                    loadBtn.style.padding = "10px";
-                    loadBtn.style.backgroundColor = "var(--surface-color)";
-                    loadBtn.style.border = "1px solid var(--border-color)";
-                    loadBtn.onclick = () => handleSearch(type, page + 1);
-                    resDiv.appendChild(loadBtn);
-                }
-
-            } catch (err) {
-                if (page === 0) {
-                    resDiv.innerHTML = '<div style="padding: 10px 12px; color: #ef4444; font-size: 13px;">Network error or no results.</div>';
-                }
-            }
+        } catch { showMessage('Failed to reach server.', true); }
+        finally {
+            document.getElementById('saveLoader').style.display = 'none';
+            document.getElementById('saveText').innerText = 'Sync to Dataset';
+            document.getElementById('saveBtn').disabled = false;
         }
+    }
 
-        function selectLevel(type, id, name, element) {
-            Array.from(element.parentElement.children).forEach(c => c.classList.remove('selected'));
-            element.classList.add('selected');
-            selection[type] = id;
+    async function startBatch() {
+        const btn = document.getElementById('btnBatch');
+        const statusDiv = document.getElementById('batchStatus');
+        const targetCount = parseInt(document.getElementById('batchCount').value);
+        const diffRaw = document.getElementById('autoDiff').value;
+        const demonFilter = diffRaw.split("_")[1];
 
-            if (type === 'full') {
-                const folderInput = document.getElementById('folderName');
-                folderInput.value = name;
-            }
-        }
+        btn.disabled = true;
+        let done = 0, page = 0;
+        statusDiv.style.display = 'block';
+        statusDiv.innerText = `Starting batch for ${targetCount} levels…`;
 
-        async function submitDataset() {
-            if (!selection.full || !selection.layout) {
-                showMessage('Please select both the decorated level and the layout level.', true);
-                return;
-            }
+        try {
+            let dlRes = await fetch('/api/downloaded');
+            let downloaded = dlRes.ok ? await dlRes.json() : [];
+            let dlSet = new Set(downloaded.map(n => n.toLowerCase().replace(/[^a-z0-9]/g, '')));
 
-            const name = document.getElementById('folderName').value.trim();
-            if (!name) {
-                showMessage('Folder Name is required.', true);
-                return;
-            }
-
-            const theme = document.getElementById('themeTag').value.trim() || 'Unknown';
-            const btn = document.getElementById('saveBtn');
-            const loader = document.getElementById('saveLoader');
-            const text = document.getElementById('saveText');
-
-            btn.disabled = true;
-            loader.classList.remove('hidden');
-            text.innerText = 'Downloading & Parsing...';
-
-            try {
-                const res = await fetch('/api/save', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        level_name: name,
-                        full_id: selection.full,
-                        layout_id: selection.layout,
-                        theme: theme
-                    })
-                });
-                
-                const responseData = await res.json();
-                if (responseData.success) {
-                    showMessage(`Successfully processed ${name}! Added to datasets.`);
-                } else {
-                    throw new Error(responseData.error || 'Server error');
+            while (done < targetCount) {
+                statusDiv.innerText = `[${done}/${targetCount}] Scanning page ${page + 1}…`;
+                let resp = await fetch(`https://gdbrowser.com/api/search/*?diff=-2&demonFilter=${demonFilter}&page=${page}`);
+                if (!resp.ok) {
+                    statusDiv.innerText = `Rate limited — cooling down 5s… [${done}/${targetCount}]`;
+                    await new Promise(r => setTimeout(r, 5000)); continue;
                 }
-            } catch (err) {
-                showMessage(err.message, true);
-            } finally {
-                btn.disabled = false;
-                loader.classList.add('hidden');
-                text.innerText = 'Sync to Local Dataset';
+                const levels = await resp.json();
+                if (!levels || levels.length === 0 || levels == "-1") { statusDiv.innerText = `[${done}/${targetCount}] No more levels at page ${page}.`; break; }
+
+                for (let L of levels) {
+                    if (done >= targetCount) break;
+                    const key = L.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    if (dlSet.has(key)) continue;
+
+                    statusDiv.innerText = `[${done}/${targetCount}] Hunting layout for: ${L.name}…`;
+                    await new Promise(r => setTimeout(r, 1200));
+
+                    // Search as "Name l" — short, reliable, avoids false description hits
+                    const layoutQuery = `${L.name} l`;
+                    try {
+                        const lRes = await fetch(`https://gdbrowser.com/api/search/${encodeURIComponent(layoutQuery)}`);
+                        if (!lRes.ok) continue;
+                        const lData = await lRes.json();
+                        if (!lData || !Array.isArray(lData) || lData.length === 0) continue;
+
+                        statusDiv.innerText = `[${done}/${targetCount}] ✓ Syncing ${L.name}…`;
+                        await fetch('/api/save', {
+                            method: 'POST',
+                            body: JSON.stringify({ level_name: L.name, full_id: L.id, layout_id: lData[0].id, theme: 'Unknown' })
+                        });
+
+                        dlSet.add(key);
+                        done++;
+                    } catch { /* Skip this level */ }
+                }
+                page++;
             }
+            statusDiv.innerText = `✓ Batch complete — ${done} levels synced!`;
+        } catch (e) {
+            statusDiv.innerText = `Stopped: ${e.message}`;
+        } finally {
+            btn.disabled = false;
         }
-    </script>
+    }
+</script>
 </body>
 </html>
