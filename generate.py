@@ -98,15 +98,21 @@ def generate_deco(theme="Hellish, Red, Demon, 2.1.", max_tokens=1024):
             logits = model.decode_step(tgt_tensor, memory)  # [1, tgt_len, vocab]
             next_logits = logits[0, -1, :]                  # last timestep
 
-            # Repetition Penalty — suppress tokens already generated
-            rep_penalty = 1.5
+            # Repetition penalty — sliding window of last 100 tokens, skip structural tokens
+            rep_penalty = 1.15
+            structural_ids = {
+                tokenizer.vocab.get(t, -1) for t in
+                ["<OBJ>", "</OBJ>", "[DECO_START]", "[DECO_END]", "[PAD]", "[UNK]",
+                 "[GP_START]", "[GP_END]", "[THEME]"]
+            }
             if len(generated_ids) > 1:
-                generated_set = set(generated_ids)
-                for token_id in generated_set:
-                    if next_logits[token_id] > 0:
-                        next_logits[token_id] /= rep_penalty
-                    else:
-                        next_logits[token_id] *= rep_penalty
+                recent = set(generated_ids[-100:]) - structural_ids
+                for token_id in recent:
+                    if 0 <= token_id < next_logits.shape[0]:
+                        if next_logits[token_id] > 0:
+                            next_logits[token_id] /= rep_penalty
+                        else:
+                            next_logits[token_id] *= rep_penalty
 
             # Temperature + Top-P sampling
             temperature = 0.7
