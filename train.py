@@ -48,13 +48,9 @@ def train():
     criterion = nn.CrossEntropyLoss(ignore_index=pad_idx)
     optimizer = optim.AdamW(model.parameters(), lr=5e-4, weight_decay=1e-2)
 
-    # Warmup + cosine scheduler
-    warmup_steps = len(loader) * 2
-    total_steps = len(loader) * 10  # sensible default
-    scheduler = optim.lr_scheduler.OneCycleLR(
-        optimizer, max_lr=5e-4,
-        steps_per_epoch=len(loader), epochs=10,
-        pct_start=0.1,
+    # Warmup + cosine restarts — compatible with infinite training loop
+    scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        optimizer, T_0=len(loader) * 2, T_mult=1, eta_min=1e-5
     )
 
     # ── 4. Training Loop ──────────────────────────────────────────────────────
