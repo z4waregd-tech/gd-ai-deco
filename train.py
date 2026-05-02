@@ -105,8 +105,10 @@ def train():
 
         
     print("\nTraining Complete! Saving model...")
-    torch.save(model.state_dict(), "gd_decorator_model.pth")
-    print("Saved as gd_decorator_model.pth")
+    import os
+    save_path = os.path.abspath("gd_decorator_model.pth")
+    torch.save(model.state_dict(), save_path)
+    print(f"Saved to: {save_path}")
 
 if __name__ == "__main__":
     train()
