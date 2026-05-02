@@ -9,6 +9,7 @@ from tqdm import tqdm
 
 def train():
     device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
+
     print(f"Using device: {device}")
     
     # 1. Load Data
@@ -93,6 +94,10 @@ def train():
             avg_loss = total_loss / len(loader)
             avg_acc = (total_correct / total_tokens) * 100 if total_tokens > 0 else 0
             print(f"Epoch {epoch+1} Completed | Average Loss: {avg_loss:.4f} | Average Accuracy: {avg_acc:.2f}%")
+            
+            # Auto-save after every epoch just in case it crashes!
+            torch.save(model.state_dict(), "gd_decorator_model.pth")
+            
             epoch += 1
             
     except KeyboardInterrupt:
