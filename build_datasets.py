@@ -150,31 +150,69 @@ def build_dataset(level_folder):
     
     # 1. Gameplay is the layout file
     gameplay = layout_objects
-    
+
     # 2. Deco = full level MINUS the layout objects.
     # We match by exact signature: Object ID + X + Y + Rotation
-    # This is much more accurate than the old grid-position method.
     layout_signatures = Counter()
     for obj in layout_objects:
-        sig = (
-            obj.get("1", "1"),           # Object ID
-            round(float(obj.get("2", "0")), 1),  # X
-            round(float(obj.get("3", "0")), 1),  # Y
-            int(round(float(obj.get("6", "0")))), # Rotation
-        )
-        layout_signatures[sig] += 1
-
-    deco = []
-    remaining = dict(layout_signatures)
-    for obj in full_objects:
         sig = (
             obj.get("1", "1"),
             round(float(obj.get("2", "0")), 1),
             round(float(obj.get("3", "0")), 1),
             int(round(float(obj.get("6", "0")))),
         )
+        layout_signatures[sig] += 1
+
+    # Safety net: these object IDs are ALWAYS gameplay, never deco,
+    # even if they are missing from the layout file (e.g. portals placed separately)
+    GAMEPLAY_IDS = {
+        # Game mode portals
+        "12", "13", "47", "111", "660", "745", "1331", "1933",
+        # Size portals
+        "99", "101",
+        # Gravity portals
+        "10", "11",
+        # Dual portals
+        "286", "287",
+        # Mirror portals
+        "45", "46",
+        # Speed portals
+        "200", "201", "202", "203", "1334",
+        # Orbs
+        "36", "84", "141", "1022", "1333", "1704", "1751",
+        # Pads
+        "35", "67", "140", "1332", "1594",
+        # Teleport portals
+        "747", "749",
+    }
+
+    deco = []
+    remaining = dict(layout_signatures)
+    for obj in full_objects:
+        obj_id = obj.get("1", "1")
+
+        # Always keep known gameplay objects out of deco
+        if obj_id in GAMEPLAY_IDS:
+            # Add to gameplay if not already there via layout
+            sig = (
+                obj_id,
+                round(float(obj.get("2", "0")), 1),
+                round(float(obj.get("3", "0")), 1),
+                int(round(float(obj.get("6", "0")))),
+            )
+            if remaining.get(sig, 0) == 0:
+                gameplay.append(obj)
+            else:
+                remaining[sig] -= 1
+            continue
+
+        sig = (
+            obj_id,
+            round(float(obj.get("2", "0")), 1),
+            round(float(obj.get("3", "0")), 1),
+            int(round(float(obj.get("6", "0")))),
+        )
         if remaining.get(sig, 0) > 0:
-            # This object exists in layout — consume one match and skip it
             remaining[sig] -= 1
         else:
             deco.append(obj)
