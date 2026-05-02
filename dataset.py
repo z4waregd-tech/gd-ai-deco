@@ -220,6 +220,22 @@ class GDEncoderDecoderDataset(Dataset):
                 level_data = json.load(f)
             self._process_level(level_data)
 
+        # !! CRITICAL: Force-register every token NOW so that vocab_size in train.py
+        # is computed AFTER all IDs exist. Without this, __getitem__ adds new IDs
+        # at training time causing embedding index-out-of-bounds on CUDA.
+        self._build_vocab()
+
+    def _build_vocab(self):
+        """Pre-warm the tokenizer vocab with every token that will appear in training."""
+        for src_tok, tgt_in_tok, tgt_out_tok in self.samples:
+            for t in src_tok:
+                self.tokenizer.get_id(t)
+            for t in tgt_in_tok:
+                self.tokenizer.get_id(t)
+            for t in tgt_out_tok:
+                self.tokenizer.get_id(t)
+
+
     def _process_level(self, level_data):
         import collections
         theme = level_data.get("theme", "Unknown")
