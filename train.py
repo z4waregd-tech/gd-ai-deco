@@ -31,11 +31,11 @@ def train():
 
     model = GDEncoderDecoderTransformer(
         vocab_size=vocab_size,
-        d_model=256,
+        d_model=384,
         nhead=8,
-        num_encoder_layers=4,
-        num_decoder_layers=4,
-        dim_feedforward=1024,
+        num_encoder_layers=6,
+        num_decoder_layers=6,
+        dim_feedforward=1536,
         dropout=0.1,
         max_seq_len=1024,
     ).to(device)
@@ -48,17 +48,20 @@ def train():
     criterion = nn.CrossEntropyLoss(ignore_index=pad_idx)
     optimizer = optim.AdamW(model.parameters(), lr=5e-4, weight_decay=1e-2)
 
-    # Warmup + cosine restarts — compatible with infinite training loop
-    scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-        optimizer, T_0=len(loader) * 2, T_mult=1, eta_min=1e-5
+    # ReduceLROnPlateau — only decays when loss stops improving, no oscillation
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode='min', factor=0.5, patience=2, min_lr=1e-5
     )
 
     # ── 4. Training Loop ──────────────────────────────────────────────────────
     print("\nStarting Encoder-Decoder Training! (Save via 'q' on Windows or Ctrl+C)")
     save_path = os.path.abspath("gd_decorator_model.pth")
+    best_path = os.path.abspath("gd_decorator_model_best.pth")
     print(f"Model will be saved to: {save_path}")
+    print(f"Best model tracked at:  {best_path}")
 
     epoch = 0
+    best_acc = 0.0
     try:
         while True:
             model.train()
@@ -117,7 +120,18 @@ def train():
             avg_acc = total_correct / max(total_tokens, 1) * 100
             print(f"Epoch {epoch + 1} Completed | Avg Loss: {avg_loss:.4f} | Avg Acc: {avg_acc:.2f}%")
 
+            # Step scheduler based on loss
+            scheduler.step(avg_loss)
+
+            # Always save latest
             torch.save(model.state_dict(), save_path)
+
+            # Save best separately
+            if avg_acc > best_acc:
+                best_acc = avg_acc
+                torch.save(model.state_dict(), best_path)
+                print(f"  ★ New best! ({best_acc:.2f}%) saved to {best_path}")
+
             epoch += 1
 
     except KeyboardInterrupt:

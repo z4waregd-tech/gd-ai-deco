@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn.functional as F
 from dataset import GDTokenizer
@@ -25,19 +26,24 @@ def generate_deco(theme="Hellish, Red, Demon, 2.1.", max_tokens=1024):
     vocab_size = len(tokenizer.vocab)
     model = GDEncoderDecoderTransformer(
         vocab_size=vocab_size,
-        d_model=256,
+        d_model=384,
         nhead=8,
-        num_encoder_layers=4,
-        num_decoder_layers=4,
-        dim_feedforward=1024,
+        num_encoder_layers=6,
+        num_decoder_layers=6,
+        dim_feedforward=1536,
         max_seq_len=1024,
     ).to(device)
 
+    # Prefer best checkpoint, fall back to latest
+    best_path = "gd_decorator_model_best.pth"
+    latest_path = "gd_decorator_model.pth"
+    ckpt = best_path if os.path.exists(best_path) else latest_path
     try:
-        model.load_state_dict(torch.load("gd_decorator_model.pth", map_location=device, weights_only=True))
+        model.load_state_dict(torch.load(ckpt, map_location=device, weights_only=True))
         model.eval()
+        print(f"Loaded checkpoint: {ckpt}")
     except FileNotFoundError:
-        print("Error: gd_decorator_model.pth not found! Run train.py first.")
+        print("Error: No model checkpoint found! Run train.py first.")
         return
 
     print("Model loaded successfully!")
