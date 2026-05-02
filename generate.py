@@ -98,6 +98,16 @@ def generate_deco(theme="Hellish, Red, Demon, 2.1.", max_tokens=1024):
             logits = model.decode_step(tgt_tensor, memory)  # [1, tgt_len, vocab]
             next_logits = logits[0, -1, :]                  # last timestep
 
+            # Repetition Penalty — suppress tokens already generated
+            rep_penalty = 1.5
+            if len(generated_ids) > 1:
+                generated_set = set(generated_ids)
+                for token_id in generated_set:
+                    if next_logits[token_id] > 0:
+                        next_logits[token_id] /= rep_penalty
+                    else:
+                        next_logits[token_id] *= rep_penalty
+
             # Temperature + Top-P sampling
             temperature = 0.7
             scaled = next_logits / temperature
