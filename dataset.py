@@ -101,33 +101,41 @@ class GDLevelDataset(Dataset):
         deco = level_data.get("deco", [])
         channels = level_data.get("channels", {})
         
-        # Find max X to know how many chunks we need
+        # Find max X and min X to know how many chunks we need
+        min_x = 0
         max_x = 0
         for obj in gameplay + deco:
             x = float(obj.get("2", 0))
             if x > max_x:
                 max_x = x
+            if x < min_x:
+                min_x = x
                 
+        min_chunk = int(min_x / self.chunk_size)
+        if min_x < 0 and min_x % self.chunk_size != 0:
+            min_chunk -= 1
+            
         num_chunks = int(max_x / self.chunk_size) + 1
         
         # Group objects by chunk
-        chunked_gp = {i: [] for i in range(num_chunks)}
-        chunked_deco = {i: [] for i in range(num_chunks)}
+        import collections
+        chunked_gp = collections.defaultdict(list)
+        chunked_deco = collections.defaultdict(list)
         
         for obj in gameplay:
             x = float(obj.get("2", 0))
-            chunk_idx = int(x / self.chunk_size)
+            chunk_idx = int(x / self.chunk_size) if x >= 0 else int(x // self.chunk_size)
             # Normalize X relative to the chunk start
             obj["2"] = str(x - (chunk_idx * self.chunk_size))
             chunked_gp[chunk_idx].append(obj)
             
         for obj in deco:
             x = float(obj.get("2", 0))
-            chunk_idx = int(x / self.chunk_size)
+            chunk_idx = int(x / self.chunk_size) if x >= 0 else int(x // self.chunk_size)
             obj["2"] = str(x - (chunk_idx * self.chunk_size))
             chunked_deco[chunk_idx].append(obj)
             
-        for i in range(num_chunks):
+        for i in range(min_chunk, num_chunks):
             # Only keep chunks that actually have deco
             if not chunked_deco[i]:
                 continue
