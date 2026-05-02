@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.pth
+*.gmd
+*.json
+!datasets/*.json
+!vocab.json

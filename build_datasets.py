@@ -11,6 +11,19 @@ DATASETS_DIR = Path("datasets")
 
 DATASETS_DIR.mkdir(exist_ok=True)
 
+# Object IDs that are ALWAYS gameplay, never deco (portals, orbs, pads, speed changes)
+GAMEPLAY_IDS = {
+    "12", "13", "47", "111", "660", "745", "1331", "1933",  # Game mode portals
+    "99", "101",          # Size portals
+    "10", "11",           # Gravity portals
+    "286", "287",         # Dual portals
+    "45", "46",           # Mirror portals
+    "200", "201", "202", "203", "1334",  # Speed portals
+    "36", "84", "141", "1022", "1333", "1704", "1751",  # Orbs
+    "35", "67", "140", "1332", "1594",  # Pads
+    "747", "749",         # Teleport portals
+}
+
 
 def extract_level_data(file_path):
     tree = ET.parse(file_path)
@@ -152,66 +165,35 @@ def build_dataset(level_folder):
     gameplay = layout_objects
 
     # 2. Deco = full level MINUS the layout objects.
-    # We match by exact signature: Object ID + X + Y + Rotation
+    # We match by exact Position (X, Y).
+    # We DO NOT match by ID or Rotation anymore!
+    # If the layout has a spike at (50, 50), and the decorator replaced it with a
+    # "colorable spike" (different ID), it will still successfully match the position!
     layout_signatures = Counter()
     for obj in layout_objects:
         sig = (
-            obj.get("1", "1"),
             round(float(obj.get("2", "0")), 1),
             round(float(obj.get("3", "0")), 1),
-            int(round(float(obj.get("6", "0")))),
         )
         layout_signatures[sig] += 1
-
-    # Safety net: these object IDs are ALWAYS gameplay, never deco,
-    # even if they are missing from the layout file (e.g. portals placed separately)
-    GAMEPLAY_IDS = {
-        # Game mode portals
-        "12", "13", "47", "111", "660", "745", "1331", "1933",
-        # Size portals
-        "99", "101",
-        # Gravity portals
-        "10", "11",
-        # Dual portals
-        "286", "287",
-        # Mirror portals
-        "45", "46",
-        # Speed portals
-        "200", "201", "202", "203", "1334",
-        # Orbs
-        "36", "84", "141", "1022", "1333", "1704", "1751",
-        # Pads
-        "35", "67", "140", "1332", "1594",
-        # Teleport portals
-        "747", "749",
-    }
 
     deco = []
     remaining = dict(layout_signatures)
     for obj in full_objects:
         obj_id = obj.get("1", "1")
+        sig = (
+            round(float(obj.get("2", "0")), 1),
+            round(float(obj.get("3", "0")), 1),
+        )
 
         # Always keep known gameplay objects out of deco
         if obj_id in GAMEPLAY_IDS:
-            # Add to gameplay if not already there via layout
-            sig = (
-                obj_id,
-                round(float(obj.get("2", "0")), 1),
-                round(float(obj.get("3", "0")), 1),
-                int(round(float(obj.get("6", "0")))),
-            )
             if remaining.get(sig, 0) == 0:
                 gameplay.append(obj)
             else:
                 remaining[sig] -= 1
             continue
 
-        sig = (
-            obj_id,
-            round(float(obj.get("2", "0")), 1),
-            round(float(obj.get("3", "0")), 1),
-            int(round(float(obj.get("6", "0")))),
-        )
         if remaining.get(sig, 0) > 0:
             remaining[sig] -= 1
         else:
@@ -243,5 +225,13 @@ def auto_build():
         if level_folder.is_dir():
             build_dataset(level_folder)
 
-
-auto_build()
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) > 1:
+        target_folder = LEVELS_DIR / sys.argv[1]
+        if target_folder.exists() and target_folder.is_dir():
+            build_dataset(target_folder)
+        else:
+            print(f"[ERROR] Level folder not found: {sys.argv[1]}")
+    else:
+        auto_build()

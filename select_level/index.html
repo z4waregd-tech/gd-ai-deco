@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GD AI Dataset Builder</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0b0b;
+            --surface-color: #161616;
+            --border-color: #2b2b2b;
+            --text-main: #ededed;
+            --text-muted: #a1a1aa;
+            --btn-bg: #2b2b2b;
+            --btn-hover: #3f3f3f;
+            --primary: #ededed;
+            --primary-bg: #161616;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .layout {
+            width: 100%;
+            max-width: 900px;
+            padding: 40px 24px;
+        }
+
+        header {
+            margin-bottom: 40px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 24px;
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin: 0 0 8px 0;
+            letter-spacing: -0.5px;
+        }
+
+        p.desc {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        .panels {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        @media (max-width: 768px) {
+            .panels {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .panel-header {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-main);
+        }
+
+        .search-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        input[type="text"], select {
+            background-color: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            border-radius: var(--radius-md);
+            padding: 10px 12px;
+            font-family: inherit;
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+
+        input[type="text"] {
+            flex: 1;
+        }
+
+        select {
+            cursor: pointer;
+            width: 140px;
+        }
+        
+        select option, optgroup {
+            background-color: var(--surface-color);
+            color: var(--text-main);
+        }
+
+        input:focus, select:focus {
+            border-color: #555;
+        }
+
+        button {
+            background-color: var(--btn-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            border-radius: var(--radius-md);
+            padding: 10px 16px;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        button:hover {
+            background-color: var(--btn-hover);
+        }
+
+        button.primary {
+            background-color: var(--primary);
+            color: #000;
+            border: none;
+            width: 100%;
+            padding: 12px;
+            font-size: 15px;
+            margin-top: 16px;
+        }
+
+        button.primary:hover {
+            background-color: #fff;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .results {
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid transparent;
+            border-radius: var(--radius-md);
+            scrollbar-width: thin;
+        }
+
+        .results::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .results::-webkit-scrollbar-thumb {
+            background-color: #444;
+            border-radius: 4px;
+        }
+
+        .result-item {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+        }
+
+        .result-item:last-child {
+            border-bottom: none;
+        }
+
+        .result-item:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .result-item.selected {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-left: 3px solid var(--text-main);
+            padding-left: 9px;
+        }
+
+        .level-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .level-name {
+            font-weight: 500;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .level-author {
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+
+        .level-id {
+            color: var(--text-muted);
+            font-family: monospace;
+            background: rgba(255,255,255,0.05);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        .diff-badge {
+            font-size: 10px;
+            padding: 2px 5px;
+            border-radius: 4px;
+            background: #2b2b2b;
+            color: #ccc;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .settings-panel {
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+        }
+
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .label {
+            display: block;
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 50;
+        }
+
+        .toast {
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 12px 16px;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            animation: slide-up 0.2s ease-out forwards;
+        }
+
+        .toast.success { border-left: 3px solid #10b981; }
+        .toast.error { border-left: 3px solid #ef4444; }
+
+        @keyframes slide-up {
+            from { transform: translateY(10px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .loader {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(0,0,0,0.2);
+            border-top: 2px solid #000;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        
+        .loader.hidden { display: none; }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div class="layout">
+        <header>
+            <h1>Dataset Builder</h1>
+            <p class="desc">Search and sync levels directly from Geometry Dash. Supports exact names and difficulties.</p>
+        </header>
+
+        <div class="panels">
+            <!-- Full Level Side -->
+            <div class="panel">
+                <div class="panel-header">Target Level (Decorated)</div>
+                <div class="search-controls">
+                    <div class="input-group">
+                        <input type="text" id="fullSearch" placeholder="Name or leave empty" onkeydown="if(event.key === 'Enter') handleSearch('full')">
+                        <select id="fullDiff">
+                            <option value="">Any Difficulty</option>
+                            <option value="-3">Auto</option>
+                            <option value="-1">N/A</option>
+                            <option value="1">Easy</option>
+                            <option value="2">Normal</option>
+                            <option value="3">Hard</option>
+                            <option value="4">Harder</option>
+                            <option value="5">Insane</option>
+                            <optgroup label="Demons">
+                                <option value="-2_1">Easy Demon</option>
+                                <option value="-2_2">Medium Demon</option>
+                                <option value="-2_3">Hard Demon</option>
+                                <option value="-2_4">Insane Demon</option>
+                                <option value="-2_5">Extreme Demon</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    <button onclick="handleSearch('full')" style="width: 100%;">Search Database</button>
+                </div>
+                <div class="results" id="fullResults"></div>
+            </div>
+
+            <!-- Layout Side -->
+            <div class="panel">
+                <div class="panel-header">Layout Source (Gameplay)</div>
+                <div class="search-controls">
+                    <div class="input-group">
+                        <input type="text" id="layoutSearch" placeholder="Name or leave empty" onkeydown="if(event.key === 'Enter') handleSearch('layout')">
+                        <select id="layoutDiff">
+                            <option value="">Any Difficulty</option>
+                            <option value="-3">Auto</option>
+                            <option value="-1">N/A</option>
+                            <option value="1">Easy</option>
+                            <option value="2">Normal</option>
+                            <option value="3">Hard</option>
+                            <option value="4">Harder</option>
+                            <option value="5">Insane</option>
+                            <optgroup label="Demons">
+                                <option value="-2_1">Easy Demon</option>
+                                <option value="-2_2">Medium Demon</option>
+                                <option value="-2_3">Hard Demon</option>
+                                <option value="-2_4">Insane Demon</option>
+                                <option value="-2_5">Extreme Demon</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    <button onclick="handleSearch('layout')" style="width: 100%;">Search Database</button>
+                </div>
+                <div class="results" id="layoutResults"></div>
+            </div>
+        </div>
+
+        <div class="settings-panel">
+            <div class="panel-header">Dataset Configuration</div>
+            <div class="settings-grid">
+                <div>
+                    <label class="label">Level Name (Folder)</label>
+                    <input type="text" id="folderName" placeholder="Level name" style="width: 100%; box-sizing:border-box;">
+                </div>
+                <div>
+                    <label class="label">Style/Theme Tag</label>
+                    <input type="text" id="themeTag" placeholder="e.g. Hell, Nine Circles" style="width: 100%; box-sizing:border-box;">
+                </div>
+            </div>
+
+            <button class="primary" id="saveBtn" onclick="submitDataset()">
+                <span class="loader hidden" id="saveLoader"></span>
+                <span id="saveText">Sync to Local Dataset</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        let selection = { full: null, layout: null };
+        let currentPages = { full: 0, layout: 0 };
+
+        function showMessage(msg, isError = false) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${isError ? 'error' : 'success'}`;
+            toast.innerText = msg;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 200);
+            }, 3000);
+        }
+
+        async function handleSearch(type, page = 0) {
+            let query = document.getElementById(`${type}Search`).value.trim();
+            const diffRaw = document.getElementById(`${type}Diff`).value;
+            
+            if (!query && !diffRaw) {
+                showMessage("Enter a name or select a difficulty.", true);
+                return;
+            }
+
+            if (!query) query = "*";
+
+            currentPages[type] = page;
+            const resDiv = document.getElementById(`${type}Results`);
+            
+            if (page === 0) {
+                resDiv.innerHTML = '<div style="padding: 10px 12px; color: #888; font-size: 13px;">Searching geometry dash servers...</div>';
+                resDiv.style.border = '1px solid var(--border-color)';
+            } else {
+                const existingLoadBtn = document.getElementById(`${type}LoadMore`);
+                if (existingLoadBtn) {
+                    existingLoadBtn.innerText = "Loading...";
+                    existingLoadBtn.disabled = true;
+                }
+            }
+
+            let apiUrl = `https://gdbrowser.com/api/search/${encodeURIComponent(query)}`;
+            const params = new URLSearchParams();
+            params.append("page", page);
+
+            if (diffRaw) {
+                if (diffRaw.startsWith("-2_")) {
+                    params.append("diff", "-2");
+                    params.append("demonFilter", diffRaw.split("_")[1]);
+                } else {
+                    params.append("diff", diffRaw);
+                }
+            }
+
+            if (params.toString()) {
+                apiUrl += `?${params.toString()}`;
+            }
+
+            try {
+                const res = await fetch(apiUrl);
+                if (!res.ok) throw new Error('API Error');
+                const data = await res.json();
+                
+                if (page > 0) {
+                    const existingLoadBtn = document.getElementById(`${type}LoadMore`);
+                    if (existingLoadBtn) existingLoadBtn.remove();
+                }
+
+                if (!data || data.length === 0 || data == "-1") {
+                    if (page === 0) resDiv.innerHTML = '<div style="padding: 10px 12px; color: #888; font-size: 13px;">No levels found.</div>';
+                    return;
+                }
+
+                if (page === 0) resDiv.innerHTML = '';
+
+                data.forEach(level => {
+                    const el = document.createElement('div');
+                    el.className = 'result-item';
+                    el.onclick = () => selectLevel(type, level.id, level.name, el);
+                    
+                    let diffText = level.difficulty;
+                    if (level.demon) diffText = "Demon";
+                    
+                    el.innerHTML = `
+                        <div class="level-info">
+                            <span class="level-name">
+                                ${level.name}
+                                <span class="diff-badge">${diffText}</span>
+                            </span>
+                            <span class="level-author">by ${level.author}</span>
+                        </div>
+                        <span class="level-id">${level.id}</span>
+                    `;
+                    resDiv.appendChild(el);
+                });
+
+                if (data.length === 10) {
+                    const loadBtn = document.createElement('button');
+                    loadBtn.id = `${type}LoadMore`;
+                    loadBtn.innerText = "Load More Levels";
+                    loadBtn.style.width = "100%";
+                    loadBtn.style.marginTop = "8px";
+                    loadBtn.style.padding = "10px";
+                    loadBtn.style.backgroundColor = "var(--surface-color)";
+                    loadBtn.style.border = "1px solid var(--border-color)";
+                    loadBtn.onclick = () => handleSearch(type, page + 1);
+                    resDiv.appendChild(loadBtn);
+                }
+
+            } catch (err) {
+                if (page === 0) {
+                    resDiv.innerHTML = '<div style="padding: 10px 12px; color: #ef4444; font-size: 13px;">Network error or no results.</div>';
+                }
+            }
+        }
+
+        function selectLevel(type, id, name, element) {
+            Array.from(element.parentElement.children).forEach(c => c.classList.remove('selected'));
+            element.classList.add('selected');
+            selection[type] = id;
+
+            if (type === 'full') {
+                const folderInput = document.getElementById('folderName');
+                folderInput.value = name;
+            }
+        }
+
+        async function submitDataset() {
+            if (!selection.full || !selection.layout) {
+                showMessage('Please select both the decorated level and the layout level.', true);
+                return;
+            }
+
+            const name = document.getElementById('folderName').value.trim();
+            if (!name) {
+                showMessage('Folder Name is required.', true);
+                return;
+            }
+
+            const theme = document.getElementById('themeTag').value.trim() || 'Unknown';
+            const btn = document.getElementById('saveBtn');
+            const loader = document.getElementById('saveLoader');
+            const text = document.getElementById('saveText');
+
+            btn.disabled = true;
+            loader.classList.remove('hidden');
+            text.innerText = 'Downloading & Parsing...';
+
+            try {
+                const res = await fetch('/api/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        level_name: name,
+                        full_id: selection.full,
+                        layout_id: selection.layout,
+                        theme: theme
+                    })
+                });
+                
+                const responseData = await res.json();
+                if (responseData.success) {
+                    showMessage(`Successfully processed ${name}! Added to datasets.`);
+                } else {
+                    throw new Error(responseData.error || 'Server error');
+                }
+            } catch (err) {
+                showMessage(err.message, true);
+            } finally {
+                btn.disabled = false;
+                loader.classList.add('hidden');
+                text.innerText = 'Sync to Local Dataset';
+            }
+        }
+    </script>
+</body>
+</html>
