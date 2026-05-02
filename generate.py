@@ -1,49 +1,54 @@
 import torch
 import torch.nn.functional as F
 from dataset import GDTokenizer
-from model import GDAutoregressiveTransformer
+from model import GDEncoderDecoderTransformer
 import xml.etree.ElementTree as ET
 import base64
 import gzip
 
+
 def generate_deco(theme="Hellish, Red, Demon, 2.1.", max_tokens=1024):
-    device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
+    device = torch.device(
+        "cuda" if torch.cuda.is_available()
+        else ("mps" if torch.backends.mps.is_available() else "cpu")
+    )
     print(f"Generating on: {device}")
-    
-    # 1. Load Tokenizer & Model
+
+    # ── 1. Load Tokenizer & Model ─────────────────────────────────────────────
     tokenizer = GDTokenizer()
     try:
         tokenizer.load("vocab.json")
     except FileNotFoundError:
-        print("Error: vocab.json not found! You must train the model first.")
+        print("Error: vocab.json not found! Train the model first.")
         return
-        
+
     vocab_size = len(tokenizer.vocab)
-    model = GDAutoregressiveTransformer(
+    model = GDEncoderDecoderTransformer(
         vocab_size=vocab_size,
         d_model=256,
         nhead=8,
-        num_layers=4,
+        num_encoder_layers=4,
+        num_decoder_layers=4,
         dim_feedforward=1024,
-        max_seq_len=1024
+        max_seq_len=1024,
     ).to(device)
-    
+
     try:
-        model.load_state_dict(torch.load("gd_decorator_model.pth", map_location=device))
+        model.load_state_dict(torch.load("gd_decorator_model.pth", map_location=device, weights_only=True))
         model.eval()
     except FileNotFoundError:
         print("Error: gd_decorator_model.pth not found! Run train.py first.")
         return
 
     print("Model loaded successfully!")
-    
-    # 2. Extract real gameplay from gameplay.gmd
+
+    # ── 2. Extract gameplay from gameplay.gmd ─────────────────────────────────
     try:
         from build_datasets import extract_level_data, decode_level_string, parse_level_objects
     except ImportError:
-        print("Required functions from build_datasets.py not imported.")
+        print("Required functions from build_datasets.py not found.")
         return
-        
+
     try:
         level_name, b64_data = extract_level_data("gameplay.gmd")
         raw_level_string = decode_level_string(b64_data)
@@ -54,72 +59,78 @@ def generate_deco(theme="Hellish, Red, Demon, 2.1.", max_tokens=1024):
 
     print(f"Loaded {len(gameplay_objects)} objects from gameplay.gmd!")
 
-    prompt_tokens = ["[THEME]"]
+    # ── 3. Build encoder source sequence: theme + gameplay ────────────────────
+    src_tokens = ["[THEME]"]
     for word in theme.replace(",", "").split():
-        prompt_tokens.append(f"<T:{word}>")
-        
-    prompt_tokens.append("[GP_START]")
-    
-    # Add real gameplay objects to the prompt
+        src_tokens.append(f"<T:{word}>")
+
+    src_tokens.append("[GP_START]")
     for obj in gameplay_objects:
-        prompt_tokens.extend(tokenizer.tokenize_object(obj, is_gameplay=True))
-        
-    prompt_tokens.append("[GP_END]")
-    prompt_tokens.append("[DECO_START]")
-    
-    # Ensure it fits within model context, trim start if necessary
-    input_ids = [tokenizer.vocab.get(t, tokenizer.vocab["[UNK]"]) for t in prompt_tokens]
-    if len(input_ids) > 500: # Leaves some room for generating tokens
-        input_ids = input_ids[-500:] 
-        
-    x = torch.tensor([input_ids], dtype=torch.long).to(device)
-    
-    # 3. Autoregressive Generation Loop
-    print("\nStarting generation for gameplay.gmd...")
-    generated_tokens = []
-    
+        src_tokens.extend(tokenizer.tokenize_object(obj, is_gameplay=True))
+    src_tokens.append("[GP_END]")
+
+    # Truncate to max encoder length
+    max_src = 512
+    src_ids = [tokenizer.vocab.get(t, tokenizer.vocab["[UNK]"]) for t in src_tokens]
+    if len(src_ids) > max_src:
+        # Keep theme + [GP_START] header, trim gameplay from the middle
+        print(f"  (Gameplay too long, trimming to {max_src} tokens)")
+        src_ids = src_ids[:max_src]
+
+    src_tensor = torch.tensor([src_ids], dtype=torch.long).to(device)
+
+    # ── 4. Encoder: run once, cache memory ───────────────────────────────────
+    print("\nEncoding gameplay sequence...")
+    with torch.no_grad():
+        memory = model.encode(src_tensor)   # [1, src_len, d_model]
+
+    # ── 5. Autoregressive decoder loop ───────────────────────────────────────
+    print("Starting decoder generation...")
+
+    deco_start_id = tokenizer.vocab.get("[DECO_START]", 1)
+    deco_end_id   = tokenizer.vocab.get("[DECO_END]",   1)
+
+    generated_ids = [deco_start_id]
+
     with torch.no_grad():
         for i in range(max_tokens):
-            context = x[:, -1024:] 
-            logits = model(context)
-            next_token_logits = logits[0, -1, :]
-            
-            temperature = 0.5
-            scaled_logits = next_token_logits / temperature
-            
-            # Top-P (Nucleus) Sampling to prevent repeating loops
+            tgt_tensor = torch.tensor([generated_ids], dtype=torch.long).to(device)
+            logits = model.decode_step(tgt_tensor, memory)  # [1, tgt_len, vocab]
+            next_logits = logits[0, -1, :]                  # last timestep
+
+            # Temperature + Top-P sampling
+            temperature = 0.7
+            scaled = next_logits / temperature
             top_p = 0.9
-            sorted_logits, sorted_indices = torch.sort(scaled_logits, descending=True)
-            cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
-            
-            sorted_indices_to_remove = cumulative_probs > top_p
-            sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
-            sorted_indices_to_remove[..., 0] = 0
-            
-            indices_to_remove = sorted_indices_to_remove.scatter(dim=-1, index=sorted_indices, src=sorted_indices_to_remove)
-            scaled_logits[indices_to_remove] = -float('Inf')
-            
-            probs = F.softmax(scaled_logits, dim=-1)
-            next_token_id = torch.multinomial(probs, num_samples=1).item()
-            
-            if next_token_id == tokenizer.vocab.get("[DECO_END]", -1):
+
+            sorted_logits, sorted_idx = torch.sort(scaled, descending=True)
+            cum_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
+            remove = cum_probs > top_p
+            remove[..., 1:] = remove[..., :-1].clone()
+            remove[..., 0] = False
+            remove_full = remove.scatter(-1, sorted_idx, remove)
+            scaled[remove_full] = -float("Inf")
+
+            probs = F.softmax(scaled, dim=-1)
+            next_id = torch.multinomial(probs, num_samples=1).item()
+
+            if next_id == deco_end_id:
                 print("\nAI reached [DECO_END]!")
                 break
-                
-            x = torch.cat((x, torch.tensor([[next_token_id]], device=device)), dim=1)
-            token_str = tokenizer.inverse_vocab.get(next_token_id, "[UNK]")
-            generated_tokens.append(token_str)
+
+            generated_ids.append(next_id)
+            token_str = tokenizer.inverse_vocab.get(next_id, "[UNK]")
             print(token_str, end=" ", flush=True)
 
-    # 4. Parse the generated tokens and append to GMD
+    generated_tokens = [tokenizer.inverse_vocab.get(i, "[UNK]") for i in generated_ids[1:]]
+
+    # ── 6. Parse tokens → GD object string ───────────────────────────────────
     print("\n\nParsing and packing into ai_decorated.gmd...")
     gd_string = ""
     current_obj = {}
-    
-    # Store channels
     channels_dict = {}
     current_ch = None
-    
+
     for token in generated_tokens:
         if token.startswith("<CH:"):
             current_ch = token[4:-1]
@@ -147,49 +158,38 @@ def generate_deco(theme="Hellish, Red, Demon, 2.1.", max_tokens=1024):
             current_obj["32"] = token[3:-1]
         elif token.startswith("<G:"):
             g_id = token[3:-1]
-            if "57" in current_obj:
-                current_obj["57"] += f".{g_id}"
-            else:
-                current_obj["57"] = g_id
+            current_obj["57"] = (current_obj["57"] + f".{g_id}") if "57" in current_obj else g_id
         elif token == "</OBJ>":
             if "1" in current_obj:
-                obj_str = ",".join([f"{k},{v}" for k, v in current_obj.items()]) + ";"
-                gd_string += obj_str
-                
-    # Build the channel string (format: 1_R_2_G_3_B_6_ID|)
+                gd_string += ",".join(f"{k},{v}" for k, v in current_obj.items()) + ";"
+
+    # ── 7. Inject color channels & rebuild level string ───────────────────────
     ch_string = ""
     for ch_id, rgb in channels_dict.items():
         ch_string += f"1_{rgb['r']}_2_{rgb['g']}_3_{rgb['b']}_6_{ch_id}|"
-        
-    # Reconstruct Full Level String (Headers + Original GP + AI Deco)
-    # We should normally inject `kS38,ch_string` into the header, but for simplicity we append standard objects
-    # Note: To fully apply custom colors, GD expects them in the first object's `kS38` key. Let's patch the raw level header!
+
     header_parts = raw_level_string.split(";", 1)
     if ch_string:
-        # If the level has no kS38 yet, we just append it. If it does, we append to it.
         if "kS38" in header_parts[0]:
             header_parts[0] = header_parts[0].replace("kS38,", f"kS38,{ch_string}")
         else:
             header_parts[0] += f",kS38,{ch_string}"
-            
+
     final_level_string = header_parts[0] + ";" + header_parts[1] + gd_string
 
-    # Compress and Base64 encode
     compressed = gzip.compress(final_level_string.encode("utf-8"))
     b64_out = base64.urlsafe_b64encode(compressed).decode("utf-8")
-    
-    # Write into XML format
+
     tree = ET.parse("gameplay.gmd")
     root = tree.getroot()
-    dict_node = root.find("dict")
-    children = list(dict_node)
-    
+    children = list(root.find("dict"))
     for i in range(len(children) - 1):
         if children[i].tag == "k" and children[i].text == "k4":
-            children[i+1].text = b64_out
-            
+            children[i + 1].text = b64_out
+
     tree.write("ai_decorated.gmd", encoding="utf-8")
     print("\nSUCCESS: Saved fully playable level to ai_decorated.gmd")
+
 
 if __name__ == "__main__":
     generate_deco(theme="Hellish, Red, Demon")

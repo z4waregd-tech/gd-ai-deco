@@ -2,111 +2,134 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from dataset import GDTokenizer, GDLevelDataset
-from model import GDAutoregressiveTransformer
+from dataset import GDTokenizer, GDEncoderDecoderDataset
+from model import GDEncoderDecoderTransformer
 import os
 import sys
-
 from tqdm import tqdm
 
+
 def train():
-    device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
+    device = torch.device(
+        "cuda" if torch.cuda.is_available()
+        else ("mps" if torch.backends.mps.is_available() else "cpu")
+    )
     print(f"Using device: {device}")
-    
-    # 1. Load Data
+
+    # ── 1. Data ──────────────────────────────────────────────────────────────
     print("Loading tokenizer and dataset...")
     tokenizer = GDTokenizer()
-    dataset = GDLevelDataset(tokenizer=tokenizer, max_length=1024) 
-    
-    # Save the vocab so our generation script can use it later
+    dataset = GDEncoderDecoderDataset(tokenizer=tokenizer, max_src_len=512, max_tgt_len=512)
     tokenizer.save("vocab.json")
-    
-    # Dataloader loops over chunks in random order
+
     batch_size = 4
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    
-    # 2. Initialize Model (deeper: 8 layers for higher accuracy)
+
+    # ── 2. Model ─────────────────────────────────────────────────────────────
     vocab_size = len(tokenizer.vocab)
-    print(f"Initializing model with vocab size {vocab_size}...")
-    
-    model = GDAutoregressiveTransformer(
+    print(f"Initializing Encoder-Decoder model with vocab size {vocab_size}...")
+
+    model = GDEncoderDecoderTransformer(
         vocab_size=vocab_size,
         d_model=256,
         nhead=8,
-        num_layers=4,
+        num_encoder_layers=4,
+        num_decoder_layers=4,
         dim_feedforward=1024,
-        max_seq_len=1024
+        dropout=0.1,
+        max_seq_len=1024,
     ).to(device)
-    
-    # 3. Optimization Setup
+
+    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Trainable parameters: {total_params:,}")
+
+    # ── 3. Optimisation ───────────────────────────────────────────────────────
     pad_idx = tokenizer.get_id("[PAD]")
     criterion = nn.CrossEntropyLoss(ignore_index=pad_idx)
-    optimizer = optim.AdamW(model.parameters(), lr=1e-3)
-    
-    # 4. Training Loop
-    print("\nStarting Training! (Save gracefully via 'q' on Windows or Ctrl+C)")
-    epoch = 0
+    optimizer = optim.AdamW(model.parameters(), lr=5e-4, weight_decay=1e-2)
+
+    # Warmup + cosine scheduler
+    warmup_steps = len(loader) * 2
+    total_steps = len(loader) * 10  # sensible default
+    scheduler = optim.lr_scheduler.OneCycleLR(
+        optimizer, max_lr=5e-4,
+        steps_per_epoch=len(loader), epochs=10,
+        pct_start=0.1,
+    )
+
+    # ── 4. Training Loop ──────────────────────────────────────────────────────
+    print("\nStarting Encoder-Decoder Training! (Save via 'q' on Windows or Ctrl+C)")
     save_path = os.path.abspath("gd_decorator_model.pth")
     print(f"Model will be saved to: {save_path}")
-    
+
+    epoch = 0
     try:
         while True:
             model.train()
             total_loss = 0
             total_correct = 0
             total_tokens = 0
-            
-            progress_bar = tqdm(enumerate(loader), total=len(loader), desc=f"Epoch {epoch+1}")
-            
-            for batch_idx, (x, y) in progress_bar:
+
+            bar = tqdm(enumerate(loader), total=len(loader), desc=f"Epoch {epoch + 1}")
+            for batch_idx, (src, tgt_in, tgt_out, src_pad_mask, tgt_pad_mask) in bar:
+                # ── Graceful quit on Windows ──
                 if sys.platform == "win32":
                     import msvcrt
                     if msvcrt.kbhit():
-                        if msvcrt.getch().decode('utf-8').lower() == 'q':
+                        if msvcrt.getch().decode("utf-8", errors="ignore").lower() == "q":
                             print("\nReceived 'q', stopping training gracefully...")
                             raise KeyboardInterrupt
-                        
-                x, y = x.to(device), y.to(device)
+
+                src = src.to(device)
+                tgt_in = tgt_in.to(device)
+                tgt_out = tgt_out.to(device)
+                src_pad_mask = src_pad_mask.to(device)
+                tgt_pad_mask = tgt_pad_mask.to(device)
+
                 optimizer.zero_grad()
-                
-                logits = model(x)
-                logits_flat = logits.view(-1, vocab_size)
-                y_flat = y.view(-1)
-                
-                loss = criterion(logits_flat, y_flat)
+
+                # Forward: encoder reads gameplay, decoder reads deco shifted-right
+                logits = model(
+                    src, tgt_in,
+                    src_key_padding_mask=src_pad_mask,
+                    tgt_key_padding_mask=tgt_pad_mask,
+                )
+
+                # Loss over decoder outputs
+                logits_flat = logits.reshape(-1, vocab_size)
+                tgt_flat = tgt_out.reshape(-1)
+                loss = criterion(logits_flat, tgt_flat)
+
                 loss.backward()
+                nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
-                
+                scheduler.step()
+
                 total_loss += loss.item()
-                
-                # Calculate Accuracy
+
                 with torch.no_grad():
-                    valid_mask = y_flat != pad_idx
-                    predictions = torch.argmax(logits_flat, dim=-1)
-                    correct = (predictions[valid_mask] == y_flat[valid_mask]).sum().item()
+                    valid_mask = tgt_flat != pad_idx
+                    preds = torch.argmax(logits_flat, dim=-1)
+                    correct = (preds[valid_mask] == tgt_flat[valid_mask]).sum().item()
                     total_correct += correct
                     total_tokens += valid_mask.sum().item()
-                    
-                    current_acc = (correct / valid_mask.sum().item()) * 100 if valid_mask.sum().item() > 0 else 0
-                    
-                progress_bar.set_postfix({"Loss": f"{loss.item():.4f}", "Acc": f"{current_acc:.2f}%"})
-                
-            avg_loss = total_loss / len(loader)
-            avg_acc = (total_correct / total_tokens) * 100 if total_tokens > 0 else 0
-            print(f"Epoch {epoch+1} Completed | Average Loss: {avg_loss:.4f} | Average Accuracy: {avg_acc:.2f}%")
-            
-            # Auto-save after every epoch!
-            torch.save(model.state_dict(), save_path)
-            
-            epoch += 1
-            
-    except KeyboardInterrupt:
-        print("\nTraining interrupted by user. Proceeding to save...")
+                    batch_acc = correct / max(valid_mask.sum().item(), 1) * 100
 
-        
-    print("\nTraining Complete! Saving model...")
+                bar.set_postfix({"Loss": f"{loss.item():.4f}", "Acc": f"{batch_acc:.2f}%"})
+
+            avg_loss = total_loss / len(loader)
+            avg_acc = total_correct / max(total_tokens, 1) * 100
+            print(f"Epoch {epoch + 1} Completed | Avg Loss: {avg_loss:.4f} | Avg Acc: {avg_acc:.2f}%")
+
+            torch.save(model.state_dict(), save_path)
+            epoch += 1
+
+    except KeyboardInterrupt:
+        print("\nTraining interrupted. Saving...")
+
     torch.save(model.state_dict(), save_path)
     print(f"Saved to: {save_path}")
+
 
 if __name__ == "__main__":
     train()

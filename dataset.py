@@ -195,7 +195,130 @@ class GDLevelDataset(Dataset):
         
         return x, y
 
-if __name__ == "__main__":
+class GDEncoderDecoderDataset(Dataset):
+    """
+    Returns separate encoder (gameplay) and decoder (deco) sequences.
+    Each sample is a (src, tgt_in, tgt_out, src_pad_mask, tgt_pad_mask) tuple:
+
+      src      — [THEME] ... [GP_START] <gameplay objects> [GP_END]
+      tgt_in   — [DECO_START] <deco objects>          (teacher forcing input)
+      tgt_out  — <deco objects> [DECO_END]             (prediction targets)
+      *_pad_mask — True where the token is padding (for PyTorch Transformer)
+    """
+
+    def __init__(self, data_dir="datasets", chunk_size=900, tokenizer=None,
+                 max_src_len=512, max_tgt_len=512):
+        self.tokenizer = tokenizer or GDTokenizer()
+        self.chunk_size = chunk_size
+        self.max_src_len = max_src_len
+        self.max_tgt_len = max_tgt_len
+        self.samples = []  # list of (src_tokens, tgt_tokens)
+
+        data_path = Path(data_dir)
+        for file in data_path.glob("*.json"):
+            with open(file, "r") as f:
+                level_data = json.load(f)
+            self._process_level(level_data)
+
+    def _process_level(self, level_data):
+        import collections
+        theme = level_data.get("theme", "Unknown")
+        gameplay = level_data.get("gameplay", [])
+        deco = level_data.get("deco", [])
+        channels = level_data.get("channels", {})
+
+        min_x, max_x = 0.0, 0.0
+        for obj in gameplay + deco:
+            x = float(obj.get("2", 0))
+            min_x = min(min_x, x)
+            max_x = max(max_x, x)
+
+        min_chunk = int(min_x / self.chunk_size)
+        if min_x < 0 and min_x % self.chunk_size != 0:
+            min_chunk -= 1
+        num_chunks = int(max_x / self.chunk_size) + 1
+
+        chunked_gp = collections.defaultdict(list)
+        chunked_deco = collections.defaultdict(list)
+
+        for obj in gameplay:
+            x = float(obj.get("2", 0))
+            ci = int(x / self.chunk_size) if x >= 0 else int(x // self.chunk_size)
+            o = dict(obj); o["2"] = str(x - ci * self.chunk_size)
+            chunked_gp[ci].append(o)
+
+        for obj in deco:
+            x = float(obj.get("2", 0))
+            ci = int(x / self.chunk_size) if x >= 0 else int(x // self.chunk_size)
+            o = dict(obj); o["2"] = str(x - ci * self.chunk_size)
+            chunked_deco[ci].append(o)
+
+        theme_tokens = ["[THEME]"]
+        for w in theme.replace(",", "").split():
+            theme_tokens.append(f"<T:{w}>")
+
+        for i in range(min_chunk, num_chunks):
+            if not chunked_deco[i]:
+                continue
+
+            # ── Encoder sequence (gameplay context) ──────────────────────────
+            src_tokens = list(theme_tokens)
+            if i == 0 and channels:
+                src_tokens.append("[CHANNELS_START]")
+                for ch_id, rgb in channels.items():
+                    src_tokens += [
+                        f"<CH:{ch_id}>", f"<CR:{rgb['r']}>",
+                        f"<CG:{rgb['g']}>", f"<CB:{rgb['b']}>"
+                    ]
+                src_tokens.append("[CHANNELS_END]")
+
+            src_tokens.append("[GP_START]")
+            for obj in chunked_gp[i]:
+                src_tokens.extend(self.tokenizer.tokenize_object(obj, is_gameplay=True))
+            src_tokens.append("[GP_END]")
+
+            # ── Decoder sequence (decoration) ────────────────────────────────
+            deco_tokens = []
+            for obj in chunked_deco[i]:
+                deco_tokens.extend(self.tokenizer.tokenize_object(obj, is_gameplay=False))
+
+            tgt_in_tokens = ["[DECO_START]"] + deco_tokens
+            tgt_out_tokens = deco_tokens + ["[DECO_END]"]
+
+            self.samples.append((src_tokens, tgt_in_tokens, tgt_out_tokens))
+
+    @staticmethod
+    def _pad(ids, max_len, pad_id):
+        ids = ids[:max_len]
+        mask = [False] * len(ids) + [True] * (max_len - len(ids))
+        ids = ids + [pad_id] * (max_len - len(ids))
+        return ids, mask
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        src_tok, tgt_in_tok, tgt_out_tok = self.samples[idx]
+        pad_id = self.tokenizer.get_id("[PAD]")
+
+        src_ids = [self.tokenizer.get_id(t) for t in src_tok]
+        tgt_in_ids = [self.tokenizer.get_id(t) for t in tgt_in_tok]
+        tgt_out_ids = [self.tokenizer.get_id(t) for t in tgt_out_tok]
+
+        src_ids, src_mask = self._pad(src_ids, self.max_src_len, pad_id)
+        tgt_in_ids, tgt_mask = self._pad(tgt_in_ids, self.max_tgt_len, pad_id)
+        tgt_out_ids, _ = self._pad(tgt_out_ids, self.max_tgt_len, pad_id)
+
+        return (
+            torch.tensor(src_ids, dtype=torch.long),
+            torch.tensor(tgt_in_ids, dtype=torch.long),
+            torch.tensor(tgt_out_ids, dtype=torch.long),
+            torch.tensor(src_mask, dtype=torch.bool),
+            torch.tensor(tgt_mask, dtype=torch.bool),
+        )
+
+
+
     print("Building tokenized dataset...")
     tokenizer = GDTokenizer()
     # 512 is max tokens per chunk. If chunks are heavy on deco, we might need 1024 or 2048.
