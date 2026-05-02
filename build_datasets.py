@@ -3,6 +3,7 @@ import base64
 import gzip
 import json
 from pathlib import Path
+from collections import Counter
 
 
 LEVELS_DIR = Path("levels")
@@ -147,30 +148,36 @@ def build_dataset(level_folder):
 
     channels = parse_level_header(full_raw)
     
-    # 1. Gameplay is literally just the layout file! No more signature guessing!
+    # 1. Gameplay is the layout file
     gameplay = layout_objects
     
-    # 2. Deco is the full level. We'll use a spatial hash grid (15 units) to remove exact duplicate layout hitboxes
-    layout_grid = set()
+    # 2. Deco = full level MINUS the layout objects.
+    # We match by exact signature: Object ID + X + Y + Rotation
+    # This is much more accurate than the old grid-position method.
+    layout_signatures = Counter()
     for obj in layout_objects:
-        x = float(obj.get("2", "0"))
-        y = float(obj.get("3", "0"))
-        layout_grid.add((round(x/15.0), round(y/15.0)))
-        
+        sig = (
+            obj.get("1", "1"),           # Object ID
+            round(float(obj.get("2", "0")), 1),  # X
+            round(float(obj.get("3", "0")), 1),  # Y
+            int(round(float(obj.get("6", "0")))), # Rotation
+        )
+        layout_signatures[sig] += 1
+
     deco = []
+    remaining = dict(layout_signatures)
     for obj in full_objects:
-        x = float(obj.get("2", "0"))
-        y = float(obj.get("3", "0"))
-        grid_pos = (round(x/15.0), round(y/15.0))
-        
-        # If this area doesn't have a layout hitbox, it's strictly deco!
-        # Even if it does naturally overlap, the generator will handle it beautifully.
-        if grid_pos not in layout_grid:
+        sig = (
+            obj.get("1", "1"),
+            round(float(obj.get("2", "0")), 1),
+            round(float(obj.get("3", "0")), 1),
+            int(round(float(obj.get("6", "0")))),
+        )
+        if remaining.get(sig, 0) > 0:
+            # This object exists in layout — consume one match and skip it
+            remaining[sig] -= 1
+        else:
             deco.append(obj)
-            
-    # For safety, if deco completely empties out due to grid overlaps, fallback to full objects
-    if len(deco) < 100:
-        deco = full_objects
 
     dataset = {
         "level": level_name,
