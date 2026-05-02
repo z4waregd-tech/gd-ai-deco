@@ -11,7 +11,7 @@ DATASETS_DIR = Path("datasets")
 
 DATASETS_DIR.mkdir(exist_ok=True)
 
-# Object IDs that are ALWAYS gameplay, never deco (portals, orbs, pads, speed changes, spikes, saws, main blocks)
+# Object IDs that are ALWAYS gameplay, never deco (portals, orbs, pads, speed changes, spikes, saws, main blocks, triggers)
 GAMEPLAY_IDS = {
     "12", "13", "47", "111", "660", "745", "1331", "1933",  # Game mode portals
     "99", "101",          # Size portals
@@ -24,7 +24,24 @@ GAMEPLAY_IDS = {
     "747", "749",         # Teleport portals
     "1", "2", "3", "4", "8", "9", "39", "40", # Standard solid blocks & spikes
     "152", "153", "1708", "1709", # Standard saws
-    "61", "142", "143", "551" # Slopes
+    "61", "142", "143", "551", # Slopes
+    # All triggers — these are invisible and must NEVER be learned as decoration
+    "29", "30", "105",    # Color triggers
+    "901",                # Move trigger
+    "1007",               # Alpha trigger
+    "1006",               # Spawn trigger
+    "1049",               # Stop trigger
+    "1268",               # Rotate trigger
+    "1346",               # Follow trigger
+    "1347",               # Shake trigger
+    "1520",               # Follow player Y trigger
+    "1585",               # Touch trigger
+    "1595",               # Count trigger
+    "1611",               # Instant count trigger
+    "1616",               # Pickup trigger
+    "1812",               # Random trigger
+    "1814", "1815",       # Advance/Reverse trigger
+    "3033", "3600", "3602", "3603", "3604", "3605", "3606", "3607",  # 2.2 triggers
 }
 
 
