@@ -48,9 +48,13 @@ def train():
     criterion = nn.CrossEntropyLoss(ignore_index=pad_idx)
     optimizer = optim.AdamW(model.parameters(), lr=5e-4, weight_decay=1e-2)
 
-    # ReduceLROnPlateau — only decays when loss stops improving, no oscillation
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.5, patience=2, min_lr=1e-5
+    # Proper Warmup is MANDATORY for a 36M parameter Transformer!
+    # We use OneCycleLR set for 500 epochs (practically infinite), 
+    # with the first 2 epochs acting as a smooth warmup phase.
+    scheduler = optim.lr_scheduler.OneCycleLR(
+        optimizer, max_lr=4e-4,
+        steps_per_epoch=len(loader), epochs=500,
+        pct_start=2.0 / 500.0,  # 2 epochs of warmup
     )
 
     # ── 4. Training Loop ──────────────────────────────────────────────────────
@@ -102,6 +106,7 @@ def train():
                 loss.backward()
                 nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
+                scheduler.step()
 
                 total_loss += loss.item()
 
@@ -118,9 +123,6 @@ def train():
             avg_loss = total_loss / len(loader)
             avg_acc = total_correct / max(total_tokens, 1) * 100
             print(f"Epoch {epoch + 1} Completed | Avg Loss: {avg_loss:.4f} | Avg Acc: {avg_acc:.2f}%")
-
-            # Step scheduler based on loss
-            scheduler.step(avg_loss)
 
             # Always save latest
             torch.save(model.state_dict(), save_path)
