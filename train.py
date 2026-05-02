@@ -102,7 +102,6 @@ def train():
                 loss.backward()
                 nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
-                scheduler.step()
 
                 total_loss += loss.item()
 
