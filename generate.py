@@ -23,7 +23,7 @@ def generate_deco(theme="Hellish, Red, Demon, 2.1.", max_tokens=1024):
         vocab_size=vocab_size,
         d_model=256,
         nhead=8,
-        num_layers=4,
+        num_layers=8,
         dim_feedforward=1024,
         max_seq_len=1024
     ).to(device)
