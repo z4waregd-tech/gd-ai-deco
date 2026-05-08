@@ -22,7 +22,7 @@ def train():
     dataset = GDEncoderDecoderDataset(tokenizer=tokenizer, max_src_len=512, max_tgt_len=512)
     tokenizer.save("vocab.json")
 
-    batch_size = 4
+    batch_size = 16
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
     # ── 2. Model ─────────────────────────────────────────────────────────────
@@ -45,16 +45,15 @@ def train():
 
     # ── 3. Optimisation ───────────────────────────────────────────────────────
     pad_idx = tokenizer.get_id("[PAD]")
-    criterion = nn.CrossEntropyLoss(ignore_index=pad_idx)
-    optimizer = optim.AdamW(model.parameters(), lr=5e-4, weight_decay=1e-2)
+    criterion = nn.CrossEntropyLoss(ignore_index=pad_idx, label_smoothing=0.1)
+    optimizer = optim.AdamW(model.parameters(), lr=1e-5, weight_decay=1e-2)
 
-    # Proper Warmup is MANDATORY for a 36M parameter Transformer!
-    # We use OneCycleLR set for 500 epochs (practically infinite), 
-    # with the first 2 epochs acting as a smooth warmup phase.
+    # OneCycleLR provides a smooth warmup and decay.
+    # With a 24k vocab, we use a slightly higher max_lr (6e-4).
     scheduler = optim.lr_scheduler.OneCycleLR(
-        optimizer, max_lr=4e-4,
+        optimizer, max_lr=6e-4,
         steps_per_epoch=len(loader), epochs=500,
-        pct_start=2.0 / 500.0,  # 2 epochs of warmup
+        pct_start=5.0 / 500.0,  # 5 epochs of warmup
     )
 
     # ── 4. Training Loop ──────────────────────────────────────────────────────

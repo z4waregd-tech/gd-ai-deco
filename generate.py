@@ -178,6 +178,10 @@ def generate_deco(theme="Hellish, Red, Demon, 2.1.", max_tokens=1024):
             current_obj["6"] = token[3:-1]
         elif token.startswith("<S:"):
             current_obj["32"] = token[3:-1]
+        elif token.startswith("<ZL:"):
+            current_obj["25"] = token[4:-1]
+        elif token.startswith("<ZO:"):
+            current_obj["24"] = token[4:-1]
         elif token.startswith("<G:"):
             g_id = token[3:-1]
             current_obj["57"] = (current_obj["57"] + f".{g_id}") if "57" in current_obj else g_id

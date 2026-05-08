@@ -5,7 +5,6 @@ from torch.utils.data import Dataset, DataLoader
 
 class GDTokenizer:
     def __init__(self):
-        # We start with some special tokens
         self.vocab = {
             "[PAD]": 0,
             "[UNK]": 1,
@@ -28,16 +27,20 @@ class GDTokenizer:
         return self.vocab[token_str]
 
     def tokenize_object(self, obj, is_gameplay=False):
-        # Discretize X and Y to the nearest 15 units (half a GD block)
+        # Discretize X and Y to the nearest 2 units (much more precise than 15)
         x_raw = float(obj.get("2", 0))
         y_raw = float(obj.get("3", 0))
-        x_snap = round(x_raw / 15) * 15
-        y_snap = round(y_raw / 15) * 15
+        x_snap = int(round(x_raw / 2) * 2)
+        y_snap = int(round(y_raw / 2) * 2)
 
         obj_id = obj.get("1", "1")
         color = obj.get("21", "1") # 21 is color channel
         
-        # New properties!
+        # Layering properties
+        z_layer = obj.get("25", "0") # Z Layer (B4, B3, B2, B1, T1, T2, T3)
+        z_order = obj.get("24", "0") # Z Order (priority within layer)
+        
+        # Transform properties
         rot_raw = float(obj.get("6", 0))
         rot_snap = int(round(rot_raw)) # Nearest integer degree
         
@@ -53,6 +56,12 @@ class GDTokenizer:
             f"<X:{x_snap}>",
             f"<Y:{y_snap}>"
         ]
+
+        # Add layering if not default
+        if z_layer != "0":
+            tokens.append(f"<ZL:{z_layer}>")
+        if z_order != "0":
+            tokens.append(f"<ZO:{z_order}>")
         
         # Add properties if they are not default to save space
         if rot_snap != 0:
@@ -335,9 +344,10 @@ class GDEncoderDecoderDataset(Dataset):
 
 
 
+if __name__ == "__main__":
     print("Building tokenized dataset...")
     tokenizer = GDTokenizer()
-    # 512 is max tokens per chunk. If chunks are heavy on deco, we might need 1024 or 2048.
+    # 1024 is max tokens per chunk. 
     dataset = GDLevelDataset(tokenizer=tokenizer, max_length=1024)
     
     # Save the vocabulary so our AI can understand the tokens later!
@@ -346,6 +356,7 @@ class GDEncoderDecoderDataset(Dataset):
     print(f"Dataset created with {len(dataset)} chunks!")
     print(f"Vocabulary size: {len(tokenizer.vocab)} unique tokens")
     
+    # Test loader
     loader = DataLoader(dataset, batch_size=4, shuffle=True)
     for x, y in loader:
         print(f"Input batch shape: {x.shape}")

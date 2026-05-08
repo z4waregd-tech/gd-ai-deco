@@ -22,26 +22,8 @@ GAMEPLAY_IDS = {
     "36", "84", "141", "1022", "1333", "1704", "1751",  # Orbs
     "35", "67", "140", "1332", "1594",  # Pads
     "747", "749",         # Teleport portals
-    "1", "2", "3", "4", "8", "9", "39", "40", # Standard solid blocks & spikes
     "152", "153", "1708", "1709", # Standard saws
     "61", "142", "143", "551", # Slopes
-    # All triggers — these are invisible and must NEVER be learned as decoration
-    "29", "30", "105",    # Color triggers
-    "901",                # Move trigger
-    "1007",               # Alpha trigger
-    "1006",               # Spawn trigger
-    "1049",               # Stop trigger
-    "1268",               # Rotate trigger
-    "1346",               # Follow trigger
-    "1347",               # Shake trigger
-    "1520",               # Follow player Y trigger
-    "1585",               # Touch trigger
-    "1595",               # Count trigger
-    "1611",               # Instant count trigger
-    "1616",               # Pickup trigger
-    "1812",               # Random trigger
-    "1814", "1815",       # Advance/Reverse trigger
-    "3033", "3600", "3602", "3603", "3604", "3605", "3606", "3607",  # 2.2 triggers
 }
 
 
@@ -134,17 +116,16 @@ def parse_level_header(raw_level):
     return channels
 
 def object_signature(obj):
-    # We round X and Y because copy-pasting objects in GD sometimes causes <0.1 precision drift
     x = float(obj.get("2", "0"))
     y = float(obj.get("3", "0"))
     rot = float(obj.get("6", "0"))
     scale = float(obj.get("32", "1"))
     
     return (
-        round(x, 1),        # x (rounded to 1 decimal)
-        round(y, 1),        # y (rounded to 1 decimal)
-        int(round(rot)),    # rotation
-        round(scale, 1)     # scale
+        round(x, 1),
+        round(y, 1),
+        int(round(rot)), 
+        round(scale, 1)
     )
 
 
