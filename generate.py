@@ -8,7 +8,7 @@ import base64
 import gzip
 import collections
 
-def generate_deco(theme="Hellish, Red, Demon", max_tokens=1024, chunk_size=900):
+def generate_deco(theme="Hellish, Red, Demon", max_tokens=1024, chunk_size=150):
     device = torch.device(
         "cuda" if torch.cuda.is_available()
         else ("mps" if torch.backends.mps.is_available() else "cpu")
