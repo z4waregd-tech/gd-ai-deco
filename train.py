@@ -23,8 +23,8 @@ def train():
     # With max_tgt_len=1024, the AI will now see the entire chunk instead of getting truncated at X=0!
     dataset = GDEncoderDecoderDataset(tokenizer=tokenizer, chunk_size=150, max_src_len=512, max_tgt_len=1024)
     tokenizer.save("vocab.json")
-
-    batch_size = 16
+    # Reduced batch size to 4 because max_tgt_len=1024 requires 4x more VRAM!
+    batch_size = 4
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
     # ── 2. Model ─────────────────────────────────────────────────────────────
