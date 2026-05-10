@@ -116,12 +116,23 @@ def generate_deco(theme="Hellish, Red, Demon", max_tokens=1024, chunk_size=900):
                 logits = model.decode_step(tgt_tensor, memory)
                 next_logits = logits[0, -1, :]
 
-                # REMOVED Repetition Penalty to allow proper cluster building!
-                
-                # Lowered temperature so the AI picks the most "confident" blocks
-                temperature = 0.5
+                # Smart Repetition Penalty (Short-term memory)
+                # This breaks "infinite loops" (stacking at X=0) without preventing you from building walls.
+                rep_penalty = 1.08
+                if len(generated_ids) > 1:
+                    # Only look at the last 30 tokens (about 4-5 objects)
+                    recent = set(generated_ids[-30:])
+                    for token_id in recent:
+                        if 0 <= token_id < next_logits.shape[0]:
+                            if next_logits[token_id] > 0:
+                                next_logits[token_id] /= rep_penalty
+                            else:
+                                next_logits[token_id] *= rep_penalty
+
+                # Increased temperature to 0.85 to allow for natural variety
+                temperature = 0.85
                 scaled = next_logits / temperature
-                top_p = 0.9
+                top_p = 0.95
 
                 sorted_logits, sorted_idx = torch.sort(scaled, descending=True)
                 cum_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
