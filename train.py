@@ -43,6 +43,19 @@ def train():
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Trainable parameters: {total_params:,}")
 
+    # --- Resume Training Logic ---
+    save_path = os.path.abspath("gd_decorator_model.pth")
+    best_path = os.path.abspath("gd_decorator_model_best.pth")
+    
+    if os.path.exists(save_path):
+        print(f"RESUMING: Found existing checkpoint at {save_path}!")
+        model.load_state_dict(torch.load(save_path, map_location=device, weights_only=True))
+    elif os.path.exists(best_path):
+        print(f"RESUMING: Found best checkpoint at {best_path}!")
+        model.load_state_dict(torch.load(best_path, map_location=device, weights_only=True))
+    else:
+        print("No existing model found. Starting from scratch.")
+
     # ── 3. Optimisation ───────────────────────────────────────────────────────
     pad_idx = tokenizer.get_id("[PAD]")
     criterion = nn.CrossEntropyLoss(ignore_index=pad_idx, label_smoothing=0.1)
