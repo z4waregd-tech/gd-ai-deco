@@ -144,6 +144,14 @@ class GDLevelDataset(Dataset):
             obj["2"] = str(x - (chunk_idx * self.chunk_size))
             chunked_deco[chunk_idx].append(obj)
             
+        def sort_objects(obj_list):
+            obj_list.sort(key=lambda o: (float(o.get("2", 0)), float(o.get("3", 0))))
+
+        for i in chunked_gp:
+            sort_objects(chunked_gp[i])
+        for i in chunked_deco:
+            sort_objects(chunked_deco[i])
+            
         for i in range(min_chunk, num_chunks):
             # Only keep chunks that actually have deco
             if not chunked_deco[i]:
@@ -277,6 +285,16 @@ class GDEncoderDecoderDataset(Dataset):
             ci = int(x / self.chunk_size) if x >= 0 else int(x // self.chunk_size)
             o = dict(obj); o["2"] = str(x - ci * self.chunk_size)
             chunked_deco[ci].append(o)
+
+        # CRITICAL FIX: Sort objects precisely by X then Y 
+        # This completely stops the "random jumping" geometry dash does in save files.
+        def sort_objects(obj_list):
+            obj_list.sort(key=lambda o: (float(o.get("2", 0)), float(o.get("3", 0))))
+
+        for i in chunked_gp:
+            sort_objects(chunked_gp[i])
+        for i in chunked_deco:
+            sort_objects(chunked_deco[i])
 
         theme_tokens = ["[THEME]"]
         for w in theme.replace(",", "").split():

@@ -73,6 +73,10 @@ def generate_deco(theme="Hellish, Red, Demon", max_tokens=1024, chunk_size=900):
         o["2"] = str(x_raw - (chunk_idx * chunk_size))
         chunked_gp[chunk_idx].append(o)
 
+    # Sort the gameplay correctly from left to right as well!
+    for i in chunked_gp:
+        chunked_gp[i].sort(key=lambda o: (float(o.get("2", 0)), float(o.get("3", 0))))
+
     min_chunk = min(chunked_gp.keys()) if chunked_gp else 0
     num_chunks = int(max_x / chunk_size) + 1
 
