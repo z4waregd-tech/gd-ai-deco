@@ -23,8 +23,9 @@ def train():
     # With max_tgt_len=1024, the AI will now see the entire chunk instead of getting truncated at X=0!
     dataset = GDEncoderDecoderDataset(tokenizer=tokenizer, chunk_size=150, max_src_len=512, max_tgt_len=1024)
     tokenizer.save("vocab.json")
-    # Reduced batch size to 4 because max_tgt_len=1024 requires 4x more VRAM!
-    batch_size = 4
+    # Because we are enabling AMP (FP16), VRAM usage is cut in half.
+    # We can safely bump batch size to 8, which halves the number of iterations!
+    batch_size = 8
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
     # ── 2. Model ─────────────────────────────────────────────────────────────
@@ -62,6 +63,9 @@ def train():
     pad_idx = tokenizer.get_id("[PAD]")
     criterion = nn.CrossEntropyLoss(ignore_index=pad_idx, label_smoothing=0.1)
     optimizer = optim.AdamW(model.parameters(), lr=1e-5, weight_decay=1e-2)
+    
+    # Initialize Gradient Scaler for Mixed Precision
+    scaler = torch.amp.GradScaler("cuda") if device.type == "cuda" else None
 
     # OneCycleLR provides a smooth warmup and decay.
     # With a 24k vocab, we use a slightly higher max_lr (6e-4).
@@ -105,21 +109,37 @@ def train():
 
                 optimizer.zero_grad()
 
-                # Forward: encoder reads gameplay, decoder reads deco shifted-right
-                logits = model(
-                    src, tgt_in,
-                    src_key_padding_mask=src_pad_mask,
-                    tgt_key_padding_mask=tgt_pad_mask,
-                )
+                # AMP (Automatic Mixed Precision) drastically speeds up T4 GPUs
+                if scaler is not None:
+                    with torch.autocast(device_type="cuda", dtype=torch.float16):
+                        logits = model(
+                            src, tgt_in,
+                            src_key_padding_mask=src_pad_mask,
+                            tgt_key_padding_mask=tgt_pad_mask,
+                        )
+                        logits_flat = logits.reshape(-1, vocab_size)
+                        tgt_flat = tgt_out.reshape(-1)
+                        loss = criterion(logits_flat, tgt_flat)
 
-                # Loss over decoder outputs
-                logits_flat = logits.reshape(-1, vocab_size)
-                tgt_flat = tgt_out.reshape(-1)
-                loss = criterion(logits_flat, tgt_flat)
+                    scaler.scale(loss).backward()
+                    scaler.unscale_(optimizer)
+                    nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                    scaler.step(optimizer)
+                    scaler.update()
+                else:
+                    logits = model(
+                        src, tgt_in,
+                        src_key_padding_mask=src_pad_mask,
+                        tgt_key_padding_mask=tgt_pad_mask,
+                    )
+                    logits_flat = logits.reshape(-1, vocab_size)
+                    tgt_flat = tgt_out.reshape(-1)
+                    loss = criterion(logits_flat, tgt_flat)
 
-                loss.backward()
-                nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-                optimizer.step()
+                    loss.backward()
+                    nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                    optimizer.step()
+
                 scheduler.step()
 
                 total_loss += loss.item()
