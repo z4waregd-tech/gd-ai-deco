@@ -23,9 +23,10 @@ def train():
     # With max_tgt_len=1024, the AI will now see the entire chunk instead of getting truncated at X=0!
     dataset = GDEncoderDecoderDataset(tokenizer=tokenizer, chunk_size=150, max_src_len=512, max_tgt_len=1024)
     tokenizer.save("vocab.json")
-    # Because we are enabling AMP (FP16), VRAM usage is cut in half.
-    # We can safely bump batch size to 8, which halves the number of iterations!
-    batch_size = 8
+    # Multi-GPU Scaling: If we have 2 GPUs, we can double the batch size!
+    gpu_count = torch.cuda.device_count()
+    batch_size = 8 * gpu_count
+    print(f"GPUs detected: {gpu_count} | Scaling batch size to: {batch_size}")
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
     # ── 2. Model ─────────────────────────────────────────────────────────────
@@ -59,7 +60,12 @@ def train():
     else:
         print("No existing model found. Starting from scratch.")
 
-    # ── 3. Optimisation ───────────────────────────────────────────────────────
+    # ── 3. Multi-GPU Support ──────────────────────────────────────────────────
+    if torch.cuda.device_count() > 1:
+        print(f"Using {torch.cuda.device_count()} GPUs with DataParallel!")
+        model = nn.DataParallel(model)
+
+    # ── 4. Optimisation ───────────────────────────────────────────────────────
     pad_idx = tokenizer.get_id("[PAD]")
     criterion = nn.CrossEntropyLoss(ignore_index=pad_idx, label_smoothing=0.1)
     optimizer = optim.AdamW(model.parameters(), lr=1e-5, weight_decay=1e-2)
