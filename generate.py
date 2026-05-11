@@ -116,9 +116,19 @@ def generate_deco(theme="Hellish, Red, Demon", max_tokens=1024, chunk_size=150):
         src_tokens.append("[GP_END]")
         
         max_src = 512
-        src_ids = [tokenizer.vocab.get(t, tokenizer.vocab["[UNK]"]) for t in src_tokens]
+        src_ids = []
+        for t in src_tokens:
+            tid = tokenizer.vocab.get(t)
+            if tid is None:
+                src_ids.append(tokenizer.vocab["[UNK]"])
+            else:
+                src_ids.append(tid)
+
+        unk_count = src_ids.count(tokenizer.vocab["[UNK]"])
+        if unk_count > 0:
+            print(f"  [WARN] {unk_count} layout tokens were UNKNOWN! (Check if dataset.py was run recently)")
+        
         if len(src_ids) > max_src:
-            print(f"  (Gameplay too dense, trimming to {max_src} tokens)")
             src_ids = src_ids[:max_src]
 
         src_tensor = torch.tensor([src_ids], dtype=torch.long).to(device)
