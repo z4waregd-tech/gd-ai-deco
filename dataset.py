@@ -13,8 +13,10 @@ class GDTokenizer:
             "[GP_END]": 4,
             "[DECO_START]": 5,
             "[DECO_END]": 6,
-            "<OBJ>": 7,
-            "</OBJ>": 8
+            "<GP_OBJ>": 7,
+            "</GP_OBJ>": 8,
+            "<OBJ>": 9,
+            "</OBJ>": 10
         }
         self.inverse_vocab = {v: k for k, v in self.vocab.items()}
         self.next_id = len(self.vocab)
@@ -50,33 +52,35 @@ class GDTokenizer:
         groups_str = obj.get("57", "")
         groups = [g for g in groups_str.split(".") if g]
         
+        prefix = "GP_" if is_gameplay else ""
+        
         tokens = [
-            "<OBJ>",
-            f"<ID:{obj_id}>",
-            f"<X:{x_snap}>",
-            f"<Y:{y_snap}>"
+            f"<{prefix}OBJ>",
+            f"<{prefix}ID:{obj_id}>",
+            f"<{prefix}X:{x_snap}>",
+            f"<{prefix}Y:{y_snap}>"
         ]
 
         # Add layering if not default
         if z_layer != "0":
-            tokens.append(f"<ZL:{z_layer}>")
+            tokens.append(f"<{prefix}ZL:{z_layer}>")
         if z_order != "0":
-            tokens.append(f"<ZO:{z_order}>")
+            tokens.append(f"<{prefix}ZO:{z_order}>")
         
         # Add properties if they are not default to save space
         if rot_snap != 0:
-            tokens.append(f"<R:{rot_snap}>")
+            tokens.append(f"<{prefix}R:{rot_snap}>")
             
         if scale_snap != 1.0:
-            tokens.append(f"<S:{scale_snap}>")
+            tokens.append(f"<{prefix}S:{scale_snap}>")
             
         for g in groups:
-            tokens.append(f"<G:{g}>")
+            tokens.append(f"<{prefix}G:{g}>")
         
         if not is_gameplay:
             tokens.append(f"<C:{color}>")
             
-        tokens.append("</OBJ>")
+        tokens.append(f"</{prefix}OBJ>")
         return tokens
 
     def save(self, path="vocab.json"):
