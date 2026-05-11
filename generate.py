@@ -120,12 +120,12 @@ def generate_deco(theme="Hellish, Red, Demon", max_tokens=1024, chunk_size=150):
                 logits = model.decode_step(tgt_tensor, memory)
                 next_logits = logits[0, -1, :]
 
-                # Smart Repetition Penalty (Short-term memory)
-                # This breaks "infinite loops" (stacking at X=0) without preventing you from building walls.
-                rep_penalty = 1.08
+                # Strengthened Repetition Penalty to kill "Spam"
+                # Increases to 1.25 and looks at the last 100 tokens to force variety.
+                rep_penalty = 1.25
                 if len(generated_ids) > 1:
-                    # Only look at the last 30 tokens (about 4-5 objects)
-                    recent = set(generated_ids[-30:])
+                    # Look back further (100 tokens) to ensure it doesn't just loop chain-gear-chain-gear
+                    recent = set(generated_ids[-100:])
                     for token_id in recent:
                         if 0 <= token_id < next_logits.shape[0]:
                             if next_logits[token_id] > 0:
@@ -133,8 +133,8 @@ def generate_deco(theme="Hellish, Red, Demon", max_tokens=1024, chunk_size=150):
                             else:
                                 next_logits[token_id] *= rep_penalty
 
-                # Decreased temperature to 0.6 for cleaner, less chaotic generations
-                temperature = 0.6
+                # Balance temperature: 0.75 allows variety without being pure chaos
+                temperature = 0.75
                 scaled = next_logits / temperature
                 top_p = 0.95
 
