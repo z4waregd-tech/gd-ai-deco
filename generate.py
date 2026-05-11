@@ -38,7 +38,16 @@ def generate_deco(theme="Hellish, Red, Demon", max_tokens=1024, chunk_size=150):
     latest_path = "gd_decorator_model.pth"
     ckpt = best_path if os.path.exists(best_path) else latest_path
     try:
-        model.load_state_dict(torch.load(ckpt, map_location=device, weights_only=True))
+        # Step 1: Load state dict
+        state_dict = torch.load(ckpt, map_location=device, weights_only=True)
+        
+        # Step 2: Handle DataParallel (remove 'module.' prefix if it exists)
+        new_state_dict = {}
+        for k, v in state_dict.items():
+            name = k[7:] if k.startswith('module.') else k
+            new_state_dict[name] = v
+            
+        model.load_state_dict(new_state_dict)
         model.eval()
         print(f"Loaded checkpoint: {ckpt}")
     except FileNotFoundError:

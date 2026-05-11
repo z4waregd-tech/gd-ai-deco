@@ -164,13 +164,14 @@ def train():
             avg_acc = total_correct / max(total_tokens, 1) * 100
             print(f"Epoch {epoch + 1} Completed | Avg Loss: {avg_loss:.4f} | Avg Acc: {avg_acc:.2f}%")
 
-            # Always save latest
-            torch.save(model.state_dict(), save_path)
+            # Always save latest (Unwrap DataParallel if necessary)
+            state_to_save = model.module.state_dict() if hasattr(model, 'module') else model.state_dict()
+            torch.save(state_to_save, save_path)
 
             # Save best separately
             if avg_acc > best_acc:
                 best_acc = avg_acc
-                torch.save(model.state_dict(), best_path)
+                torch.save(state_to_save, best_path)
                 print(f"  ★ New best! ({best_acc:.2f}%) saved to {best_path}")
 
             epoch += 1
@@ -178,7 +179,8 @@ def train():
     except KeyboardInterrupt:
         print("\nTraining interrupted. Saving...")
 
-    torch.save(model.state_dict(), save_path)
+    state_to_save = model.module.state_dict() if hasattr(model, 'module') else model.state_dict()
+    torch.save(state_to_save, save_path)
     print(f"Saved to: {save_path}")
 
 
