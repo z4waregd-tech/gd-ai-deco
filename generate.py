@@ -133,8 +133,8 @@ def generate_deco(theme="Hellish, Red, Demon", max_tokens=1024, chunk_size=150):
                             else:
                                 next_logits[token_id] *= rep_penalty
 
-                # Increased temperature to 0.85 to allow for natural variety
-                temperature = 0.85
+                # Decreased temperature to 0.6 for cleaner, less chaotic generations
+                temperature = 0.6
                 scaled = next_logits / temperature
                 top_p = 0.95
 
