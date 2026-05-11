@@ -22,9 +22,31 @@ def generate_deco(theme="Hellish, Red, Demon", max_tokens=1024, chunk_size=150):
         print("Error: vocab.json not found! Train the model first.")
         return
 
-    vocab_size = len(tokenizer.vocab)
+    # Load checkpoint
+    best_path = "gd_decorator_model_best.pth"
+    latest_path = "gd_decorator_model.pth"
+    ckpt = best_path if os.path.exists(best_path) else latest_path
+    
+    if not os.path.exists(ckpt):
+        print(f"Error: No model checkpoint found at {ckpt}!")
+        return
+
+    print(f"Loading checkpoint: {ckpt}")
+    state_dict = torch.load(ckpt, map_location=device, weights_only=True)
+    
+    # Handle DataParallel (remove 'module.' prefix if it exists)
+    new_state_dict = {}
+    for k, v in state_dict.items():
+        name = k[7:] if k.startswith('module.') else k
+        new_state_dict[name] = v
+        
+    # CRITICAL: Detect the exact vocab size the model was trained with
+    trained_vocab_size = new_state_dict["embedding.weight"].shape[0]
+    print(f"Vocab size in model: {trained_vocab_size} | Vocab size in tokenizer: {len(tokenizer.vocab)}")
+
+    # Initialize model with the exact size it was trained with
     model = GDEncoderDecoderTransformer(
-        vocab_size=vocab_size,
+        vocab_size=trained_vocab_size,
         d_model=384,
         nhead=8,
         num_encoder_layers=6,
@@ -33,26 +55,9 @@ def generate_deco(theme="Hellish, Red, Demon", max_tokens=1024, chunk_size=150):
         max_seq_len=1024,
     ).to(device)
 
-    # Load checkpoint
-    best_path = "gd_decorator_model_best.pth"
-    latest_path = "gd_decorator_model.pth"
-    ckpt = best_path if os.path.exists(best_path) else latest_path
-    try:
-        # Step 1: Load state dict
-        state_dict = torch.load(ckpt, map_location=device, weights_only=True)
-        
-        # Step 2: Handle DataParallel (remove 'module.' prefix if it exists)
-        new_state_dict = {}
-        for k, v in state_dict.items():
-            name = k[7:] if k.startswith('module.') else k
-            new_state_dict[name] = v
-            
-        model.load_state_dict(new_state_dict)
-        model.eval()
-        print(f"Loaded checkpoint: {ckpt}")
-    except FileNotFoundError:
-        print("Error: No model checkpoint found! Run train.py first.")
-        return
+    model.load_state_dict(new_state_dict)
+    model.eval()
+    print("Model loaded successfully!")
 
     try:
         from build_datasets import extract_level_data, decode_level_string, parse_level_objects
