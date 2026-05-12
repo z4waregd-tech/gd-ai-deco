@@ -51,12 +51,30 @@ def train():
     save_path = os.path.abspath("gd_decorator_model.pth")
     best_path = os.path.abspath("gd_decorator_model_best.pth")
     
+    # --- Resume Training Logic: support both old (raw state_dict) and new (dict with vocab) ---
     if os.path.exists(save_path):
         print(f"RESUMING: Found existing checkpoint at {save_path}!")
-        model.load_state_dict(torch.load(save_path, map_location=device, weights_only=True))
+        ckpt = torch.load(save_path, map_location=device, weights_only=False)
+        if isinstance(ckpt, dict) and "model" in ckpt:
+            model.load_state_dict(ckpt["model"])
+            # Restore tokenizer vocab so IDs stay consistent!
+            tokenizer.vocab = ckpt["vocab"]
+            tokenizer.inverse_vocab = {v: k for k, v in tokenizer.vocab.items()}
+            tokenizer.next_id = max(tokenizer.vocab.values()) + 1
+            print(f"  Vocab restored from checkpoint ({len(tokenizer.vocab)} tokens).")
+        else:
+            model.load_state_dict(ckpt)  # legacy format
     elif os.path.exists(best_path):
         print(f"RESUMING: Found best checkpoint at {best_path}!")
-        model.load_state_dict(torch.load(best_path, map_location=device, weights_only=True))
+        ckpt = torch.load(best_path, map_location=device, weights_only=False)
+        if isinstance(ckpt, dict) and "model" in ckpt:
+            model.load_state_dict(ckpt["model"])
+            tokenizer.vocab = ckpt["vocab"]
+            tokenizer.inverse_vocab = {v: k for k, v in tokenizer.vocab.items()}
+            tokenizer.next_id = max(tokenizer.vocab.values()) + 1
+            print(f"  Vocab restored from checkpoint ({len(tokenizer.vocab)} tokens).")
+        else:
+            model.load_state_dict(ckpt)
     else:
         print("No existing model found. Starting from scratch.")
 
@@ -176,12 +194,13 @@ def train():
 
             # Always save latest (Unwrap DataParallel if necessary)
             state_to_save = model.module.state_dict() if hasattr(model, 'module') else model.state_dict()
-            torch.save(state_to_save, save_path)
+            checkpoint = {"model": state_to_save, "vocab": tokenizer.vocab}
+            torch.save(checkpoint, save_path)
 
             # Save best separately
             if avg_acc > best_acc:
                 best_acc = avg_acc
-                torch.save(state_to_save, best_path)
+                torch.save(checkpoint, best_path)
                 print(f"  ★ New best! ({best_acc:.2f}%) saved to {best_path}")
 
             epoch += 1
@@ -190,7 +209,8 @@ def train():
         print("\nTraining interrupted. Saving...")
 
     state_to_save = model.module.state_dict() if hasattr(model, 'module') else model.state_dict()
-    torch.save(state_to_save, save_path)
+    checkpoint = {"model": state_to_save, "vocab": tokenizer.vocab}
+    torch.save(checkpoint, save_path)
     print(f"Saved to: {save_path}")
 
 

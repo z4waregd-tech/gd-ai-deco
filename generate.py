@@ -19,30 +19,40 @@ def generate_deco(theme="Hellish, Red, Demon", max_tokens=1024, chunk_size=150):
     try:
         tokenizer.load("vocab.json")
     except FileNotFoundError:
-        print("Error: vocab.json not found! Train the model first.")
-        return
+        pass  # We'll load from checkpoint below
 
     # Load checkpoint
     best_path = "gd_decorator_model_best.pth"
     latest_path = "gd_decorator_model.pth"
     ckpt = best_path if os.path.exists(best_path) else latest_path
-    
+
     if not os.path.exists(ckpt):
         print(f"Error: No model checkpoint found at {ckpt}!")
         return
 
     print(f"Loading checkpoint: {ckpt}")
-    state_dict = torch.load(ckpt, map_location=device, weights_only=True)
-    
+    raw_ckpt = torch.load(ckpt, map_location=device, weights_only=False)
+
+    # Support both new format (dict with vocab) and legacy format (raw state_dict)
+    if isinstance(raw_ckpt, dict) and "model" in raw_ckpt:
+        state_dict = raw_ckpt["model"]
+        # CRITICAL: Load vocab from checkpoint — guaranteed to match the model!
+        tokenizer.vocab = raw_ckpt["vocab"]
+        tokenizer.inverse_vocab = {v: k for k, v in tokenizer.vocab.items()}
+        tokenizer.next_id = max(tokenizer.vocab.values()) + 1
+        print(f"Vocab loaded from checkpoint: {len(tokenizer.vocab)} tokens.")
+    else:
+        state_dict = raw_ckpt  # legacy format
+
     # Handle DataParallel (remove 'module.' prefix if it exists)
     new_state_dict = {}
     for k, v in state_dict.items():
         name = k[7:] if k.startswith('module.') else k
         new_state_dict[name] = v
-        
-    # CRITICAL: Detect the exact vocab size the model was trained with
+
+    # Detect vocab size from checkpoint weights
     trained_vocab_size = new_state_dict["embedding.weight"].shape[0]
-    print(f"Vocab size in model: {trained_vocab_size} | Vocab size in tokenizer: {len(tokenizer.vocab)}")
+    print(f"Model vocab size: {trained_vocab_size} | Tokenizer vocab size: {len(tokenizer.vocab)}")
 
     # Initialize model with the exact size it was trained with
     model = GDEncoderDecoderTransformer(
