@@ -154,19 +154,21 @@ def generate_deco(theme="Hellish, Red, Demon", max_tokens=1024, chunk_size=150):
                 logits = model.decode_step(tgt_tensor, memory)
                 next_logits = logits[0, -1, :]
 
-                # EXTRA STRENGTH Repetition Penalty for long training runs
-                rep_penalty = 1.5 # Increased from 1.25
-                if len(generated_ids) > 1:
-                    recent = generated_ids[-200:] # Look back further
-                    for token_id in set(recent):
-                        if 0 <= token_id < next_logits.shape[0]:
-                            # Count how many times it appeared to scale the penalty
-                            count = recent.count(token_id)
-                            penalty_factor = rep_penalty ** count
+
+                # Repetition Penalty: ONLY penalize object ID tokens, not structural ones.
+                # Structural tokens like <OBJ>, </OBJ>, <X:>, <Y:> MUST repeat - don't touch them!
+                rep_penalty = 1.3
+                STRUCTURAL = {"<OBJ>", "</OBJ>", "[DECO_START]", "[DECO_END]", "[PAD]", "[UNK]"}
+                if len(generated_ids) > 5:
+                    recent_ids = generated_ids[-50:]
+                    for token_id in set(recent_ids):
+                        token_str = tokenizer.inverse_vocab.get(token_id, "")
+                        # Only penalize pure object ID tokens (e.g. <ID:1>, <ID:200>)
+                        if token_str.startswith("<ID:") and 0 <= token_id < next_logits.shape[0]:
                             if next_logits[token_id] > 0:
-                                next_logits[token_id] /= penalty_factor
+                                next_logits[token_id] /= rep_penalty
                             else:
-                                next_logits[token_id] *= penalty_factor
+                                next_logits[token_id] *= rep_penalty
 
                 temperature = 0.65 # Lowered slightly for more "professional" placement
                 scaled = next_logits / temperature
