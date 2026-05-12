@@ -127,9 +127,14 @@ def train():
                         tgt_flat = tgt_out.reshape(-1)
                         loss = criterion(logits_flat, tgt_flat)
 
+                    if torch.isnan(loss):
+                        print(f"\n  [WARN] NaN Loss detected at Epoch {epoch+1}! Skipping batch to prevent corruption.")
+                        optimizer.zero_grad()
+                        continue
+
                     scaler.scale(loss).backward()
                     scaler.unscale_(optimizer)
-                    nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                    nn.utils.clip_grad_norm_(model.parameters(), 0.5) # Lowered clip from 1.0 to 0.5 for extra safety
                     scaler.step(optimizer)
                     scaler.update()
                 else:
@@ -142,8 +147,13 @@ def train():
                     tgt_flat = tgt_out.reshape(-1)
                     loss = criterion(logits_flat, tgt_flat)
 
+                    if torch.isnan(loss):
+                        print(f"\n  [WARN] NaN Loss detected at Epoch {epoch+1}! Skipping batch to prevent corruption.")
+                        optimizer.zero_grad()
+                        continue
+
                     loss.backward()
-                    nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                    nn.utils.clip_grad_norm_(model.parameters(), 0.5) # Lowered clip from 1.0 to 0.5 for extra safety
                     optimizer.step()
 
                 scheduler.step()
