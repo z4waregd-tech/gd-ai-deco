@@ -144,112 +144,110 @@ def generate_deco(theme="Hellish, Red, Demon", max_tokens=1024, chunk_size=150):
                 logits = model.decode_step(tgt_tensor, memory)
                 next_logits = logits[0, -1, :]
 
-                # Strengthened Repetition Penalty to kill "Spam"
-                # Increases to 1.25 and looks at the last 100 tokens to force variety.
-                rep_penalty = 1.25
+                # EXTRA STRENGTH Repetition Penalty for long training runs
+                rep_penalty = 1.5 # Increased from 1.25
                 if len(generated_ids) > 1:
-                    # Look back further (100 tokens) to ensure it doesn't just loop chain-gear-chain-gear
-                    recent = set(generated_ids[-100:])
-                    for token_id in recent:
+                    recent = generated_ids[-200:] # Look back further
+                    for token_id in set(recent):
                         if 0 <= token_id < next_logits.shape[0]:
+                            # Count how many times it appeared to scale the penalty
+                            count = recent.count(token_id)
+                            penalty_factor = rep_penalty ** count
                             if next_logits[token_id] > 0:
-                                next_logits[token_id] /= rep_penalty
+                                next_logits[token_id] /= penalty_factor
                             else:
-                                next_logits[token_id] *= rep_penalty
+                                next_logits[token_id] *= penalty_factor
 
-                # Balance temperature: 0.75 allows variety without being pure chaos
-                temperature = 0.75
+                temperature = 0.65 # Lowered slightly for more "professional" placement
                 scaled = next_logits / temperature
-                top_p = 0.95
-
-                sorted_logits, sorted_idx = torch.sort(scaled, descending=True)
-                cum_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
-                
-                remove = cum_probs > top_p
-                remove[..., 1:] = remove[..., :-1].clone()
-                remove[..., 0] = False
-                remove_full = remove.scatter(-1, sorted_idx, remove)
-                scaled[remove_full] = -float("Inf")
+                top_p = 0.92 # More conservative sampling
 
                 probs = F.softmax(scaled, dim=-1)
-                next_id = torch.multinomial(probs, num_samples=1).item()
+                
+                # Apply top-p
+                sorted_probs, sorted_indices = torch.sort(probs, descending=True)
+                cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
+                
+                sorted_indices_to_remove = cumulative_probs > top_p
+                sorted_indices_to_remove[1:] = sorted_indices_to_remove[:-1].clone()
+                sorted_indices_to_remove[0] = False
+                
+                indices_to_remove = sorted_indices[sorted_indices_to_remove]
+                probs[indices_to_remove] = 0
+                probs /= probs.sum()
 
-                if next_id == deco_end_id:
-                    print(f"AI seamlessly finished chunk {i}!")
+                # Sample
+                next_token = torch.multinomial(probs, num_samples=1).item()
+                generated_ids.append(next_token)
+
+                if next_token == deco_end_id:
                     break
 
-                generated_ids.append(next_id)
+        # 3. Parse generated tokens into objects with Safety Zone
+        # Build set of gameplay Y positions in this chunk
+        gp_y_positions = [float(obj.get("3", 0)) for obj in chunked_gp.get(i, [])]
 
-        # 3. Convert back to tokens and Restore Global X Coordinate
-        chunk_tokens = []
+        current_obj = {}
+        chunk_deco = []
         for id_val in generated_ids[1:]:
             token_str = tokenizer.inverse_vocab.get(id_val, "[UNK]")
-            
-            # If it's an X coordinate, add the chunk's offset back so it matches the real level length!
-            if token_str.startswith("<X:"):
-                local_x = int(token_str[3:-1])
-                global_x = local_x + (i * chunk_size)
-                token_str = f"<X:{global_x}>"
-                
-            chunk_tokens.append(token_str)
-            
-        global_generated_tokens.extend(chunk_tokens)
 
-    # ── 4. Parse all chunks back into GD object format ───────────────────────
+            if token_str == "<OBJ>":
+                current_obj = {}
+            elif token_str == "</OBJ>":
+                if "1" in current_obj and "2" in current_obj:
+                    obj_id = current_obj.get("1", "1")
+                    x_val = float(current_obj.get("2", "0"))
+                    y_val = float(current_obj.get("3", "0"))
+
+                    # RE-OFFSET X back to world space
+                    current_obj["2"] = str(x_val + (i * chunk_size))
+
+                    # ⚠️ SAFETY CHECK: nudge solid blocks away from the player path
+                    if obj_id in ["1","2","3","4","5","6","7","8","9","10"]:
+                        for gy in gp_y_positions:
+                            if abs(y_val - gy) < 15:
+                                y_val += 30  # nudge up out of player's way
+                                break
+                    current_obj["3"] = str(y_val)
+
+                    # Default Z-order to background if not specified
+                    if "24" not in current_obj:
+                        current_obj["24"] = "-5"
+
+                    chunk_deco.append(current_obj)
+                current_obj = {}
+            elif token_str.startswith("<ID:"):
+                current_obj["1"] = token_str[4:-1]
+            elif token_str.startswith("<X:"):
+                current_obj["2"] = token_str[3:-1]
+            elif token_str.startswith("<Y:"):
+                current_obj["3"] = token_str[3:-1]
+            elif token_str.startswith("<C:"):
+                current_obj["21"] = token_str[3:-1]
+            elif token_str.startswith("<ZL:"):
+                current_obj["25"] = token_str[4:-1]
+            elif token_str.startswith("<ZO:"):
+                current_obj["24"] = token_str[4:-1]
+            elif token_str.startswith("<R:"):
+                current_obj["6"] = token_str[3:-1]
+            elif token_str.startswith("<S:"):
+                current_obj["32"] = token_str[3:-1]
+            elif token_str.startswith("<G:"):
+                g_id = token_str[3:-1]
+                current_obj["57"] = (current_obj["57"] + f".{g_id}") if "57" in current_obj else g_id
+
+        print(f"  Generated {len(chunk_deco)} decoration objects.")
+        global_generated_tokens.extend(chunk_deco)
+
+    # ── 4. Build GD string from collected objects ─────────────────────────────
     print("\n\nPacking everything beautifully into ai_decorated.gmd...")
     gd_string = ""
-    current_obj = {}
-    channels_dict = {}
-    current_ch = None
+    for obj in global_generated_tokens:
+        gd_string += ",".join(f"{k},{v}" for k, v in obj.items()) + ";"
 
-    for token in global_generated_tokens:
-        if token.startswith("<CH:"):
-            current_ch = token[4:-1]
-            if current_ch not in channels_dict:
-                channels_dict[current_ch] = {"r": "255", "g": "255", "b": "255"}
-        elif token.startswith("<CR:") and current_ch:
-            channels_dict[current_ch]["r"] = token[4:-1]
-        elif token.startswith("<CG:") and current_ch:
-            channels_dict[current_ch]["g"] = token[4:-1]
-        elif token.startswith("<CB:") and current_ch:
-            channels_dict[current_ch]["b"] = token[4:-1]
-        elif token == "<OBJ>":
-            current_obj = {}
-        elif token.startswith("<ID:"):
-            current_obj["1"] = token[4:-1]
-        elif token.startswith("<X:"):
-            current_obj["2"] = token[3:-1]
-        elif token.startswith("<Y:"):
-            current_obj["3"] = token[3:-1]
-        elif token.startswith("<C:"):
-            current_obj["21"] = token[3:-1]
-        elif token.startswith("<ZL:"):
-            current_obj["25"] = token[4:-1]
-        elif token.startswith("<ZO:"):
-            current_obj["24"] = token[4:-1]
-        elif token.startswith("<R:"):
-            current_obj["6"] = token[3:-1]
-        elif token.startswith("<S:"):
-            current_obj["32"] = token[3:-1]
-        elif token.startswith("<G:"):
-            g_id = token[3:-1]
-            current_obj["57"] = (current_obj["57"] + f".{g_id}") if "57" in current_obj else g_id
-        elif token == "</OBJ>":
-            if "1" in current_obj:
-                gd_string += ",".join(f"{k},{v}" for k, v in current_obj.items()) + ";"
-
-    # ── 5. Inject color channels & rebuild level string ───────────────────────
-    ch_string = ""
-    for ch_id, rgb in channels_dict.items():
-        ch_string += f"1_{rgb['r']}_2_{rgb['g']}_3_{rgb['b']}_6_{ch_id}|"
-
+    # ── 5. Rebuild level string ────────────────────────────────────────────────
     header_parts = raw_level_string.split(";", 1)
-    if ch_string:
-        if "kS38" in header_parts[0]:
-            header_parts[0] = header_parts[0].replace("kS38,", f"kS38,{ch_string}")
-        else:
-            header_parts[0] += f",kS38,{ch_string}"
-
     final_level_string = header_parts[0] + ";" + header_parts[1] + gd_string
 
     compressed = gzip.compress(final_level_string.encode("utf-8"))
